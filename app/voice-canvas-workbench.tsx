@@ -16,18 +16,37 @@ import { SvgCanvas } from "./svg-canvas";
 
 export function VoiceCanvasWorkbench() {
   const [elements, setElements] = useState<CanvasElement[]>(demoCanvasElements);
+  const [history, setHistory] = useState<CanvasElement[][]>([]);
 
   function addDemoObject() {
     setElements((current) => {
       const nextId = getNextElementId(current);
       const createdCount = current.filter((element) => element.type !== "arrow").length;
 
+      setHistory((items) => [...items, current]);
       return [...current, createDemoElement(nextId, createdCount)];
     });
   }
 
   function handleCommand(command: DrawCommand) {
+    if (command.action === "undo") {
+      if (history.length === 0) {
+        return "没有可撤销的操作。";
+      }
+
+      const previous = history[history.length - 1];
+      setElements(previous);
+      setHistory((items) => items.slice(0, -1));
+
+      return "已撤销上一步操作。";
+    }
+
     const result = executeCommand(elements, command);
+
+    if (result.didChange) {
+      setHistory((items) => [...items, elements]);
+    }
+
     setElements(result.elements);
 
     return result.message;
