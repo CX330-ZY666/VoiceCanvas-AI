@@ -16,6 +16,16 @@ type OpenAIResponseBody = {
   output?: ResponseOutputItem[];
 };
 
+type ChatCompletionBody = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
+
+type ApiFormat = "responses" | "chat";
+
 const fallbackMessage = "大模型解析暂时不可用，已切换到本地解析。";
 const allowedShapeTypes = ["circle", "rect", "diamond", "text"] as const;
 const allowedRelations = ["leftOf", "rightOf", "above", "below"] as const;
@@ -28,25 +38,28 @@ type ScaleDirection = typeof allowedScales[number];
 
 function localFallback(text: string, message = fallbackMessage) {
   const commands = parseCommandSequence(text);
-  const shouldAppendMessage = commands.length === 1 && commands[0].action === "clarify";
 
   return NextResponse.json({
-    commands: shouldAppendMessage ? commands : commands,
+    commands,
     source: "local",
     message
   });
 }
 
-function extractResponseText(data: OpenAIResponseBody) {
-  if (typeof data.output_text === "string") {
+function extractResponseText(data: OpenAIResponseBody | ChatCompletionBody) {
+  if ("choices" in data && Array.isArray(data.choices)) {
+    return data.choices[0]?.message?.content?.trim() ?? "";
+  }
+
+  if ("output_text" in data && typeof data.output_text === "string") {
     return data.output_text;
   }
 
-  return data.output
+  return "output" in data ? data.output
     ?.flatMap((item) => item.content ?? [])
     .map((item) => item.text ?? "")
     .join("\n")
-    .trim() ?? "";
+    .trim() ?? "" : "";
 }
 
 function parseJsonPayload(outputText: string) {
@@ -63,10 +76,6 @@ function parseJsonPayload(outputText: string) {
   }
 
   return [];
-}
-
-function isUppercaseId(value: unknown) {
-  return typeof value === "string" && /^[A-Z]$/.test(value);
 }
 
 function normalizeId(value: unknown) {
@@ -268,6 +277,50 @@ function buildPrompt(text: string) {
   ].join("\n");
 }
 
+function resolveApiFormat(apiUrl: string): ApiFormat {
+  const configuredFormat = process.env.OPENAI_API_FORMAT;
+
+  if (configuredFormat === "chat" || configuredFormat === "responses") {
+    return configuredFormat;
+  }
+
+  return apiUrl.includes("/chat/completions") ? "chat" : "responses";
+}
+
+function resolveModel(apiUrl: string) {
+  if (process.env.OPENAI_MODEL) {
+    return process.env.OPENAI_MODEL;
+  }
+
+  return apiUrl.includes("deepseek.com") ? "deepseek-v4-flash" : "gpt-4.1-mini";
+}
+
+function buildRequestBody(format: ApiFormat, model: string, prompt: string) {
+  if (format === "chat") {
+    return {
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "你是 VoiceCanvas AI 的指令解析器。只输出 JSON，不输出解释。"
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: {
+        type: "json_object"
+      }
+    };
+  }
+
+  return {
+    model,
+    input: prompt
+  };
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { text?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -285,8 +338,10 @@ export async function POST(request: Request) {
     return localFallback(text, "未配置 OPENAI_API_KEY，已使用本地解析。");
   }
 
-  const model = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
   const apiUrl = process.env.OPENAI_API_URL ?? "https://api.openai.com/v1/responses";
+  const apiFormat = resolveApiFormat(apiUrl);
+  const model = resolveModel(apiUrl);
+  const prompt = buildPrompt(text);
 
   try {
     const response = await fetch(apiUrl, {
@@ -295,17 +350,14 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model,
-        input: buildPrompt(text)
-      })
+      body: JSON.stringify(buildRequestBody(apiFormat, model, prompt))
     });
 
     if (!response.ok) {
       return localFallback(text);
     }
 
-    const data = await response.json() as OpenAIResponseBody;
+    const data = await response.json() as OpenAIResponseBody | ChatCompletionBody;
     const outputText = extractResponseText(data);
     const rawCommands = parseJsonPayload(outputText);
     const commands = sanitizeCommands(rawCommands);
