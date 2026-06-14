@@ -3,6 +3,7 @@
 import {
   ArrowCounterClockwise,
   Broom,
+  DownloadSimple,
   Microphone,
   PaperPlaneTilt,
   Repeat,
@@ -76,6 +77,10 @@ function isRepeatCommand(text: string) {
   return /(重复上一条|重复上一个|再来一次|再执行一次|再画一个|再做一次)/.test(text.replace(/\s+/g, ""));
 }
 
+function isExportSvgCommand(text: string) {
+  return /(导出|下载|保存).*(画布|SVG|svg)|(?:导出|下载|保存)SVG/i.test(text.replace(/\s+/g, ""));
+}
+
 function isRepeatableCommand(command: DrawCommand) {
   return ["create", "update", "connect", "delete", "duplicate", "auto_layout", "generate_template"].includes(command.action);
 }
@@ -112,6 +117,7 @@ const voiceHelpExamples = [
   "画布里有什么",
   "生成一个登录流程图",
   "整理画布",
+  "导出画布",
   "重复上一条",
   "历史记录",
   "确认清空",
@@ -183,9 +189,11 @@ function parseAppControlCommand(text: string): AppControlCommand | null {
 
 export function CommandPanel({
   onCommand,
+  onExportSvg,
   onSummarizeCanvas
 }: Readonly<{
   onCommand?: (command: DrawCommand) => string;
+  onExportSvg?: () => string;
   onSummarizeCanvas?: () => string;
 }>) {
   const [input, setInput] = useState("画一个红色圆形");
@@ -364,6 +372,21 @@ export function CommandPanel({
       setIsClearConfirmationPending(false);
     }
 
+    if (isExportSvgCommand(text)) {
+      const message = onExportSvg?.() ?? "当前无法导出 SVG。";
+      setParsedCommands([{
+        action: "clarify",
+        message
+      }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(message);
+      setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, message);
+      speakFeedback(message);
+      return;
+    }
+
     if (isRepeatCommand(text)) {
       if (!lastRepeatableCommandText) {
         const message = "还没有可重复的绘图指令。";
@@ -433,6 +456,7 @@ export function CommandPanel({
     isClearConfirmationPending,
     lastRepeatableCommandText,
     onCommand,
+    onExportSvg,
     selectedTargetId,
     speakFeedback
   ]);
@@ -506,6 +530,22 @@ export function CommandPanel({
 
     if (isClearConfirmationPending) {
       setIsClearConfirmationPending(false);
+    }
+
+    if (isExportSvgCommand(text)) {
+      const message = onExportSvg?.() ?? "当前无法导出 SVG。";
+      setInput(text);
+      setParsedCommands([{
+        action: "clarify",
+        message
+      }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(message);
+      setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, message);
+      speakFeedback(message);
+      return;
     }
 
     if (isRepeatCommand(text)) {
@@ -585,7 +625,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 24 自动排版"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 25 导出 SVG"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -635,6 +675,15 @@ export function CommandPanel({
           ) : (
             <SpeakerSlash size={18} weight="bold" />
           )}
+        </ToolbarButton>
+        <ToolbarButton
+          label="导出 SVG"
+          onClick={() => {
+            setInput("导出画布");
+            executeTextCommand("导出画布");
+          }}
+        >
+          <DownloadSimple size={18} weight="bold" />
         </ToolbarButton>
         <ToolbarButton
           label="清空画布"
