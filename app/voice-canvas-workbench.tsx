@@ -6,6 +6,7 @@ import {
   type CanvasElement,
   createDemoElement,
   demoCanvasElements,
+  getElementLabel,
   getNextElementId
 } from "./canvas-data";
 import { CommandPanel } from "./command-panel";
@@ -13,6 +14,27 @@ import { executeCommand } from "./command-executor";
 import type { DrawCommand } from "./command-parser";
 import { ObjectList } from "./object-list";
 import { SvgCanvas } from "./svg-canvas";
+
+function describeCanvasElement(element: CanvasElement) {
+  if (element.type === "arrow") {
+    return `箭头 ${element.id}，从 ${element.fromId ?? "未知对象"} 指向 ${element.toId ?? "未知对象"}`;
+  }
+
+  const text = element.text ? `，文字是${element.text}` : "";
+  return `${getElementLabel(element)} ${element.id}${text}`;
+}
+
+function summarizeCanvasElements(elements: CanvasElement[]) {
+  if (elements.length === 0) {
+    return "当前画布是空的。";
+  }
+
+  const arrows = elements.filter((element) => element.type === "arrow");
+  const drawableElements = elements.filter((element) => element.type !== "arrow");
+  const descriptions = elements.map(describeCanvasElement).join("；");
+
+  return `当前画布有 ${drawableElements.length} 个对象和 ${arrows.length} 条箭头：${descriptions}。`;
+}
 
 export function VoiceCanvasWorkbench() {
   const [elements, setElements] = useState<CanvasElement[]>(demoCanvasElements);
@@ -75,9 +97,11 @@ export function VoiceCanvasWorkbench() {
     return result.message;
   }, []);
 
+  const handleSummarizeCanvas = useCallback(() => summarizeCanvasElements(elementsRef.current), []);
+
   return (
     <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
-      <CommandPanel onCommand={handleCommand} />
+      <CommandPanel onCommand={handleCommand} onSummarizeCanvas={handleSummarizeCanvas} />
 
       <section className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
         <div className="flex flex-col gap-3 border-b border-canvas-line pb-3 sm:flex-row sm:items-center sm:justify-between">

@@ -68,18 +68,26 @@ const voiceHelpExamples = [
   "连接 A 和 B",
   "把最右边的图形改成绿色",
   "删除最上面的图形",
+  "画布里有什么",
   "生成一个登录流程图",
   "开启语音反馈",
   "关闭语音反馈"
 ];
 
 type AppControlCommand = {
-  kind: "enable_feedback" | "disable_feedback" | "stop_feedback" | "show_help";
+  kind: "enable_feedback" | "disable_feedback" | "stop_feedback" | "show_help" | "summarize_canvas";
   message: string;
 };
 
 function parseAppControlCommand(text: string): AppControlCommand | null {
   const normalizedText = text.replace(/\s+/g, "");
+
+  if (/(画布里有什么|画布有什么|当前.*对象|有哪些对象|对象列表|总结画布|描述画布|读一下画布)/.test(normalizedText)) {
+    return {
+      kind: "summarize_canvas",
+      message: "正在读取当前画布。"
+    };
+  }
 
   if (/(帮助|说明|怎么用|能说什么|支持什么|支持哪些|指令列表|命令列表)/.test(normalizedText)) {
     return {
@@ -113,9 +121,11 @@ function parseAppControlCommand(text: string): AppControlCommand | null {
 }
 
 export function CommandPanel({
-  onCommand
+  onCommand,
+  onSummarizeCanvas
 }: Readonly<{
   onCommand?: (command: DrawCommand) => string;
+  onSummarizeCanvas?: () => string;
 }>) {
   const [input, setInput] = useState("画一个红色圆形");
   const [recognizedText, setRecognizedText] = useState("等待语音输入。");
@@ -158,13 +168,23 @@ export function CommandPanel({
       return false;
     }
 
+    const resolvedMessage = controlCommand.kind === "summarize_canvas"
+      ? onSummarizeCanvas?.() ?? "当前无法读取画布状态。"
+      : controlCommand.message;
+
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(controlCommand.message);
+    setExecutionMessage(resolvedMessage);
     setIsVoiceHelpVisible(controlCommand.kind === "show_help");
     setParsedCommands([{
       action: "clarify",
-      message: controlCommand.message
+      message: resolvedMessage
     }]);
+
+    if (controlCommand.kind === "summarize_canvas") {
+      setIsVoiceHelpVisible(false);
+      speakFeedback(resolvedMessage);
+      return true;
+    }
 
     if (controlCommand.kind === "show_help") {
       if (isSpeechFeedbackEnabled) {
@@ -186,7 +206,7 @@ export function CommandPanel({
     }
 
     return true;
-  }, [isSpeechFeedbackEnabled, speakSpeechFeedback, stopSpeechFeedback]);
+  }, [isSpeechFeedbackEnabled, onSummarizeCanvas, speakFeedback, speakSpeechFeedback, stopSpeechFeedback]);
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
@@ -273,7 +293,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 16 语音帮助"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 17 画布摘要"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
