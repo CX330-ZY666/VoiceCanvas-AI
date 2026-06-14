@@ -6,11 +6,14 @@ import {
   Microphone,
   PaperPlaneTilt,
   Repeat,
+  SpeakerHigh,
+  SpeakerSlash,
   StopCircle
 } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
 import { type DrawCommand, parseCommandSequence } from "./command-parser";
 import { useSpeechRecognition } from "./use-speech-recognition";
+import { useSpeechSynthesis } from "./use-speech-synthesis";
 
 function ToolbarButton({
   label,
@@ -68,6 +71,12 @@ export function CommandPanel({
   const [recognizedText, setRecognizedText] = useState("等待语音输入。");
   const [parsedCommands, setParsedCommands] = useState<DrawCommand[]>([]);
   const [executionMessage, setExecutionMessage] = useState("");
+  const [isSpeechFeedbackEnabled, setIsSpeechFeedbackEnabled] = useState(true);
+  const {
+    message: speechFeedbackMessage,
+    speak: speakSpeechFeedback,
+    stop: stopSpeechFeedback
+  } = useSpeechSynthesis();
   const executeParsedCommands = useCallback((commands: DrawCommand[]) => {
     if (!onCommand) {
       return "";
@@ -86,24 +95,33 @@ export function CommandPanel({
 
     return messages.join(" ");
   }, [onCommand]);
+  const speakFeedback = useCallback((message: string) => {
+    if (isSpeechFeedbackEnabled && message) {
+      speakSpeechFeedback(message);
+    }
+  }, [isSpeechFeedbackEnabled, speakSpeechFeedback]);
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
     if (isStopSpeechCommand(text)) {
+      const stopMessage = "已停止连续语音输入。";
       setRecognizedText(text);
-      setExecutionMessage("已停止连续语音输入。");
+      setExecutionMessage(stopMessage);
       setParsedCommands([{
         action: "clarify",
-        message: "已停止连续语音输入。"
+        message: stopMessage
       }]);
+      speakFeedback(stopMessage);
       return;
     }
 
     const results = parseCommandSequence(text);
+    const message = executeParsedCommands(results);
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(executeParsedCommands(results));
-  }, [executeParsedCommands]);
+    setExecutionMessage(message);
+    speakFeedback(message);
+  }, [executeParsedCommands, speakFeedback]);
   const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
@@ -125,21 +143,25 @@ export function CommandPanel({
 
   function executeTextCommand(text: string) {
     if (isStopSpeechCommand(text)) {
+      const stopMessage = "已停止连续语音输入。";
       speech.stopListening();
       setInput(text);
       setRecognizedText(text);
-      setExecutionMessage("已停止连续语音输入。");
+      setExecutionMessage(stopMessage);
       setParsedCommands([{
         action: "clarify",
-        message: "已停止连续语音输入。"
+        message: stopMessage
       }]);
+      speakFeedback(stopMessage);
       return;
     }
 
     const results = parseCommandSequence(text);
+    const message = executeParsedCommands(results);
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(executeParsedCommands(results));
+    setExecutionMessage(message);
+    speakFeedback(message);
   }
 
   function executeCommand() {
@@ -151,7 +173,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 11 连续语音"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 14 语音反馈"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -177,10 +199,30 @@ export function CommandPanel({
           label="停止语音输入"
           onClick={() => {
             speech.stopListening();
+            stopSpeechFeedback();
             setRecognizedText("已停止语音输入。");
           }}
         >
           <StopCircle size={18} weight="bold" />
+        </ToolbarButton>
+        <ToolbarButton
+          label={isSpeechFeedbackEnabled ? "关闭语音反馈" : "开启语音反馈"}
+          onClick={() => {
+            if (isSpeechFeedbackEnabled) {
+              setIsSpeechFeedbackEnabled(false);
+              stopSpeechFeedback();
+              return;
+            }
+
+            setIsSpeechFeedbackEnabled(true);
+            speakSpeechFeedback("语音反馈已开启。");
+          }}
+        >
+          {isSpeechFeedbackEnabled ? (
+            <SpeakerHigh size={18} weight="bold" />
+          ) : (
+            <SpeakerSlash size={18} weight="bold" />
+          )}
         </ToolbarButton>
         <ToolbarButton
           label="清空画布"
@@ -227,6 +269,9 @@ export function CommandPanel({
       <div className="mt-3 rounded-md border border-canvas-line bg-white p-3">
         <p className="text-xs font-semibold text-canvas-muted">系统反馈</p>
         <p className="mt-2 text-sm">{feedback}</p>
+        <p className="mt-2 text-xs text-canvas-muted">
+          语音反馈：{isSpeechFeedbackEnabled ? speechFeedbackMessage : "已关闭"}
+        </p>
         {parsedCommands.length > 0 ? (
           <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-canvas-wash p-3 text-xs leading-5 text-canvas-ink">
             {JSON.stringify(parsedCommands.length === 1 ? parsedCommands[0] : parsedCommands, null, 2)}
