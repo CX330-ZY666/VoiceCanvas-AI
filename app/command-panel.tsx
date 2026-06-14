@@ -62,6 +62,14 @@ function isStopSpeechCommand(text: string) {
   return /(停止|结束|关闭).*(语音|监听|输入)?/.test(text);
 }
 
+function isConfirmClearCommand(text: string) {
+  return /(确认|确定|同意|执行).*(清空|清除|删除全部)/.test(text.replace(/\s+/g, ""));
+}
+
+function isCancelCommand(text: string) {
+  return /(取消|算了|不用|不要|放弃)/.test(text.replace(/\s+/g, ""));
+}
+
 const voiceHelpExamples = [
   "画一个红色圆形",
   "在圆形 A 右边画一个蓝色矩形",
@@ -70,9 +78,13 @@ const voiceHelpExamples = [
   "删除最上面的图形",
   "画布里有什么",
   "生成一个登录流程图",
+  "确认清空",
   "开启语音反馈",
   "关闭语音反馈"
 ];
+
+const clearConfirmationMessage = "清空画布会删除所有对象。请说“确认清空”继续，或说“取消”放弃。";
+const clearCancelledMessage = "已取消清空画布。";
 
 type AppControlCommand = {
   kind: "enable_feedback" | "disable_feedback" | "stop_feedback" | "show_help" | "summarize_canvas";
@@ -133,6 +145,7 @@ export function CommandPanel({
   const [executionMessage, setExecutionMessage] = useState("");
   const [isSpeechFeedbackEnabled, setIsSpeechFeedbackEnabled] = useState(true);
   const [isVoiceHelpVisible, setIsVoiceHelpVisible] = useState(false);
+  const [isClearConfirmationPending, setIsClearConfirmationPending] = useState(false);
   const {
     message: speechFeedbackMessage,
     speak: speakSpeechFeedback,
@@ -146,6 +159,12 @@ export function CommandPanel({
     const messages: string[] = [];
 
     for (const command of commands) {
+      if (command.action === "clear") {
+        setIsClearConfirmationPending(true);
+        messages.push(clearConfirmationMessage);
+        break;
+      }
+
       const message = onCommand(command);
       messages.push(message);
 
@@ -210,6 +229,34 @@ export function CommandPanel({
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
+    if (isClearConfirmationPending && isConfirmClearCommand(text)) {
+      const message = onCommand?.({ action: "clear" }) ?? "";
+      setIsClearConfirmationPending(false);
+      setParsedCommands([{ action: "clear" }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(message);
+      setIsVoiceHelpVisible(false);
+      speakFeedback(message);
+      return;
+    }
+
+    if (isClearConfirmationPending && isCancelCommand(text)) {
+      setIsClearConfirmationPending(false);
+      setParsedCommands([{
+        action: "clarify",
+        message: clearCancelledMessage
+      }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(clearCancelledMessage);
+      setIsVoiceHelpVisible(false);
+      speakFeedback(clearCancelledMessage);
+      return;
+    }
+
+    if (isClearConfirmationPending) {
+      setIsClearConfirmationPending(false);
+    }
+
     if (applyAppControlCommand(text)) {
       return;
     }
@@ -234,7 +281,7 @@ export function CommandPanel({
     setExecutionMessage(message);
     setIsVoiceHelpVisible(false);
     speakFeedback(message);
-  }, [applyAppControlCommand, executeParsedCommands, speakFeedback]);
+  }, [applyAppControlCommand, executeParsedCommands, isClearConfirmationPending, onCommand, speakFeedback]);
   const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
@@ -255,6 +302,36 @@ export function CommandPanel({
   }, [executionMessage, parsedCommands]);
 
   function executeTextCommand(text: string) {
+    if (isClearConfirmationPending && isConfirmClearCommand(text)) {
+      const message = onCommand?.({ action: "clear" }) ?? "";
+      setIsClearConfirmationPending(false);
+      setInput(text);
+      setParsedCommands([{ action: "clear" }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(message);
+      setIsVoiceHelpVisible(false);
+      speakFeedback(message);
+      return;
+    }
+
+    if (isClearConfirmationPending && isCancelCommand(text)) {
+      setIsClearConfirmationPending(false);
+      setInput(text);
+      setParsedCommands([{
+        action: "clarify",
+        message: clearCancelledMessage
+      }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(clearCancelledMessage);
+      setIsVoiceHelpVisible(false);
+      speakFeedback(clearCancelledMessage);
+      return;
+    }
+
+    if (isClearConfirmationPending) {
+      setIsClearConfirmationPending(false);
+    }
+
     if (applyAppControlCommand(text)) {
       setInput(text);
       return;
@@ -293,7 +370,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 17 画布摘要"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 18 清空确认"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -392,6 +469,11 @@ export function CommandPanel({
         <p className="mt-2 text-xs text-canvas-muted">
           语音反馈：{isSpeechFeedbackEnabled ? speechFeedbackMessage : "已关闭"}
         </p>
+        {isClearConfirmationPending ? (
+          <p className="mt-2 rounded-md border border-[#f59e0b] bg-[#fffbeb] px-3 py-2 text-sm font-semibold text-[#92400e]">
+            等待确认：请说“确认清空”或“取消”。
+          </p>
+        ) : null}
         {isVoiceHelpVisible ? (
           <div className="mt-3 rounded-md border border-canvas-line bg-canvas-wash p-3">
             <p className="text-xs font-semibold text-canvas-muted">可说的指令示例</p>
