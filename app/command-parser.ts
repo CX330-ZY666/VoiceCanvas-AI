@@ -41,6 +41,9 @@ export type DrawCommand =
       targetQuery?: SpatialTargetQuery;
     }
   | {
+      action: "auto_layout";
+    }
+  | {
       action: "clear";
     }
   | {
@@ -214,6 +217,10 @@ export function parseCommand(input: string): DrawCommand {
 
   if (command.includes("撤销")) {
     return { action: "undo" };
+  }
+
+  if (command.includes("整理画布") || command.includes("自动排版") || command.includes("重新排版") || command.includes("排列整齐")) {
+    return { action: "auto_layout" };
   }
 
   if (command.includes("生成") && command.includes("登录") && command.includes("流程图")) {
