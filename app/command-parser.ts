@@ -256,3 +256,16 @@ export function parseCommand(input: string): DrawCommand {
     message: "我暂时无法解析这条指令。你可以试试“画一个红色圆形”或“连接 A 和 B”。"
   };
 }
+
+export function parseCommandSequence(input: string) {
+  const parts = input
+    .split(/(?:然后|接着|并且|，再|再)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    return [parseCommand(input)];
+  }
+
+  return parts.map(parseCommand);
+}
