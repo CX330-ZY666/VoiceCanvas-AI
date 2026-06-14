@@ -1,6 +1,4 @@
-import { demoCanvasElements, getElementLabel } from "./canvas-data";
-import { CommandPanel } from "./command-panel";
-import { SvgCanvas } from "./svg-canvas";
+import { VoiceCanvasWorkbench } from "./voice-canvas-workbench";
 
 const exampleCommands = [
   "画一个红色圆形",
@@ -10,18 +8,6 @@ const exampleCommands = [
   "把圆形 A 放大一点",
   "生成一个登录流程图"
 ];
-
-const visibleObjects = demoCanvasElements.map((item) => ({
-  id: item.id,
-  type: getElementLabel(item),
-  color: item.color ?? "黑色",
-  position:
-    item.type === "arrow" ? `${item.fromId} -> ${item.toId}` : `x: ${item.x}, y: ${item.y}`,
-  description:
-    item.type === "arrow"
-      ? `箭头：${item.fromId} 指向 ${item.toId}`
-      : `${getElementLabel(item)}：${item.color ?? "黑色"}`
-}));
 
 export default function Home() {
   return (
@@ -48,41 +34,7 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
-          <CommandPanel />
-
-          <section className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
-            <div className="flex items-center justify-between border-b border-canvas-line pb-3">
-              <h2 className="text-base font-bold">SVG 画布</h2>
-              <span className="font-mono text-xs text-canvas-muted">900 x 600</span>
-            </div>
-            <div className="mt-4 overflow-hidden rounded-md border border-canvas-line bg-canvas-wash p-3">
-              <SvgCanvas elements={demoCanvasElements} />
-            </div>
-          </section>
-
-          <aside className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
-            <div className="flex items-center justify-between border-b border-canvas-line pb-3">
-              <h2 className="text-base font-bold">对象列表</h2>
-              <span className="text-xs font-medium text-canvas-muted">示例数据</span>
-            </div>
-            <div className="mt-4 divide-y divide-canvas-line overflow-hidden rounded-md border border-canvas-line">
-              {visibleObjects.map((item) => (
-                <div className="grid gap-2 bg-white p-3 text-sm" key={item.id}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold">对象 {item.id}</span>
-                    <span className="rounded bg-canvas-wash px-2 py-1 text-xs text-canvas-muted">
-                      {item.type}
-                    </span>
-                  </div>
-                  <p className="text-canvas-muted">颜色：{item.color}</p>
-                  <p className="font-mono text-xs text-canvas-muted">{item.position}</p>
-                  <p className="text-xs leading-5 text-canvas-muted">{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </aside>
-        </section>
+        <VoiceCanvasWorkbench />
 
         <footer className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
           <h2 className="text-base font-bold">可尝试的指令</h2>

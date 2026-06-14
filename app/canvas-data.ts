@@ -61,6 +61,34 @@ export const demoCanvasElements: CanvasElement[] = [
   }
 ];
 
+export function getNextElementId(elements: CanvasElement[]) {
+  const usedIds = new Set(elements.map((element) => element.id.toUpperCase()));
+  let code = "A".charCodeAt(0);
+
+  while (usedIds.has(String.fromCharCode(code))) {
+    code += 1;
+  }
+
+  return String.fromCharCode(code);
+}
+
+export function createDemoElement(id: string, index: number): CanvasElement {
+  const shapes: ShapeType[] = ["circle", "rect", "diamond"];
+  const colors = ["#22c55e", "#f97316", "#8b5cf6"];
+  const shapeType = shapes[index % shapes.length];
+
+  return {
+    id,
+    type: shapeType,
+    x: 180 + (index % 4) * 145,
+    y: 390 + Math.floor(index / 4) * 90,
+    width: shapeType === "circle" ? undefined : 110,
+    height: shapeType === "circle" ? undefined : 68,
+    radius: shapeType === "circle" ? 38 : undefined,
+    color: colors[index % colors.length]
+  };
+}
+
 export function getElementLabel(element: CanvasElement) {
   const labels: Record<ElementType, string> = {
     circle: "圆形",
