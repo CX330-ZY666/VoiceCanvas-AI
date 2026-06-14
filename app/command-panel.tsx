@@ -78,6 +78,11 @@ function isRepeatableCommand(command: DrawCommand) {
   return ["create", "update", "connect", "delete", "generate_template"].includes(command.action);
 }
 
+type CommandHistoryItem = {
+  text: string;
+  message: string;
+};
+
 const voiceHelpExamples = [
   "画一个红色圆形",
   "在圆形 A 右边画一个蓝色矩形",
@@ -87,6 +92,7 @@ const voiceHelpExamples = [
   "画布里有什么",
   "生成一个登录流程图",
   "重复上一条",
+  "历史记录",
   "确认清空",
   "开启语音反馈",
   "关闭语音反馈"
@@ -96,12 +102,25 @@ const clearConfirmationMessage = "清空画布会删除所有对象。请说“�
 const clearCancelledMessage = "已取消清空画布。";
 
 type AppControlCommand = {
-  kind: "enable_feedback" | "disable_feedback" | "stop_feedback" | "show_help" | "summarize_canvas";
+  kind:
+    | "enable_feedback"
+    | "disable_feedback"
+    | "stop_feedback"
+    | "show_help"
+    | "summarize_canvas"
+    | "show_history";
   message: string;
 };
 
 function parseAppControlCommand(text: string): AppControlCommand | null {
   const normalizedText = text.replace(/\s+/g, "");
+
+  if (/(历史记录|命令历史|操作历史|刚才说了什么|之前说了什么|上一些指令)/.test(normalizedText)) {
+    return {
+      kind: "show_history",
+      message: "正在读取最近的命令历史。"
+    };
+  }
 
   if (/(画布里有什么|画布有什么|当前.*对象|有哪些对象|对象列表|总结画布|描述画布|读一下画布)/.test(normalizedText)) {
     return {
@@ -156,6 +175,8 @@ export function CommandPanel({
   const [isVoiceHelpVisible, setIsVoiceHelpVisible] = useState(false);
   const [isClearConfirmationPending, setIsClearConfirmationPending] = useState(false);
   const [lastRepeatableCommandText, setLastRepeatableCommandText] = useState("");
+  const [commandHistory, setCommandHistory] = useState<CommandHistoryItem[]>([]);
+  const [isCommandHistoryVisible, setIsCommandHistoryVisible] = useState(false);
   const {
     message: speechFeedbackMessage,
     speak: speakSpeechFeedback,
@@ -190,6 +211,18 @@ export function CommandPanel({
       speakSpeechFeedback(message);
     }
   }, [isSpeechFeedbackEnabled, speakSpeechFeedback]);
+  const appendCommandHistory = useCallback((text: string, message: string) => {
+    const cleanText = text.trim();
+
+    if (!cleanText) {
+      return;
+    }
+
+    setCommandHistory((items) => [
+      { text: cleanText, message },
+      ...items.filter((item) => item.text !== cleanText)
+    ].slice(0, 5));
+  }, []);
   const applyAppControlCommand = useCallback((text: string) => {
     const controlCommand = parseAppControlCommand(text);
 
@@ -200,22 +233,33 @@ export function CommandPanel({
     const resolvedMessage = controlCommand.kind === "summarize_canvas"
       ? onSummarizeCanvas?.() ?? "当前无法读取画布状态。"
       : controlCommand.message;
+    const historyMessage = commandHistory.length === 0
+      ? "还没有命令历史。"
+      : `最近 ${commandHistory.length} 条命令：${commandHistory.map((item, index) => `${index + 1}. ${item.text}`).join("；")}。`;
 
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(resolvedMessage);
+    setExecutionMessage(controlCommand.kind === "show_history" ? historyMessage : resolvedMessage);
     setIsVoiceHelpVisible(controlCommand.kind === "show_help");
+    setIsCommandHistoryVisible(controlCommand.kind === "show_history");
     setParsedCommands([{
       action: "clarify",
-      message: resolvedMessage
+      message: controlCommand.kind === "show_history" ? historyMessage : resolvedMessage
     }]);
+
+    if (controlCommand.kind === "show_history") {
+      speakFeedback(historyMessage);
+      return true;
+    }
 
     if (controlCommand.kind === "summarize_canvas") {
       setIsVoiceHelpVisible(false);
+      appendCommandHistory(text, resolvedMessage);
       speakFeedback(resolvedMessage);
       return true;
     }
 
     if (controlCommand.kind === "show_help") {
+      appendCommandHistory(text, controlCommand.message);
       if (isSpeechFeedbackEnabled) {
         speakSpeechFeedback(controlCommand.message);
       }
@@ -224,6 +268,7 @@ export function CommandPanel({
 
     if (controlCommand.kind === "enable_feedback") {
       setIsSpeechFeedbackEnabled(true);
+      appendCommandHistory(text, controlCommand.message);
       speakSpeechFeedback(controlCommand.message);
       return true;
     }
@@ -234,8 +279,17 @@ export function CommandPanel({
       setIsSpeechFeedbackEnabled(false);
     }
 
+    appendCommandHistory(text, controlCommand.message);
     return true;
-  }, [isSpeechFeedbackEnabled, onSummarizeCanvas, speakFeedback, speakSpeechFeedback, stopSpeechFeedback]);
+  }, [
+    appendCommandHistory,
+    commandHistory,
+    isSpeechFeedbackEnabled,
+    onSummarizeCanvas,
+    speakFeedback,
+    speakSpeechFeedback,
+    stopSpeechFeedback
+  ]);
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
@@ -246,6 +300,8 @@ export function CommandPanel({
       setRecognizedText(text.trim() || "未输入文本。");
       setExecutionMessage(message);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, message);
       speakFeedback(message);
       return;
     }
@@ -259,6 +315,8 @@ export function CommandPanel({
       setRecognizedText(text.trim() || "未输入文本。");
       setExecutionMessage(clearCancelledMessage);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, clearCancelledMessage);
       speakFeedback(clearCancelledMessage);
       return;
     }
@@ -277,6 +335,8 @@ export function CommandPanel({
         setRecognizedText(text.trim() || "未输入文本。");
         setExecutionMessage(message);
         setIsVoiceHelpVisible(false);
+        setIsCommandHistoryVisible(false);
+        appendCommandHistory(text, message);
         speakFeedback(message);
         return;
       }
@@ -289,6 +349,8 @@ export function CommandPanel({
       setRecognizedText(text.trim() || "未输入文本。");
       setExecutionMessage(repeatMessage);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, repeatMessage);
       speakFeedback(repeatMessage);
       return;
     }
@@ -306,6 +368,8 @@ export function CommandPanel({
         message: stopMessage
       }]);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, stopMessage);
       speakFeedback(stopMessage);
       return;
     }
@@ -316,11 +380,21 @@ export function CommandPanel({
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
     setIsVoiceHelpVisible(false);
+    setIsCommandHistoryVisible(false);
     if (results.every(isRepeatableCommand)) {
       setLastRepeatableCommandText(text.trim());
     }
+    appendCommandHistory(text, message);
     speakFeedback(message);
-  }, [applyAppControlCommand, executeParsedCommands, isClearConfirmationPending, lastRepeatableCommandText, onCommand, speakFeedback]);
+  }, [
+    appendCommandHistory,
+    applyAppControlCommand,
+    executeParsedCommands,
+    isClearConfirmationPending,
+    lastRepeatableCommandText,
+    onCommand,
+    speakFeedback
+  ]);
   const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
@@ -349,6 +423,8 @@ export function CommandPanel({
       setRecognizedText(text.trim() || "未输入文本。");
       setExecutionMessage(message);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, message);
       speakFeedback(message);
       return;
     }
@@ -363,6 +439,8 @@ export function CommandPanel({
       setRecognizedText(text.trim() || "未输入文本。");
       setExecutionMessage(clearCancelledMessage);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, clearCancelledMessage);
       speakFeedback(clearCancelledMessage);
       return;
     }
@@ -382,6 +460,8 @@ export function CommandPanel({
         setRecognizedText(text.trim() || "未输入文本。");
         setExecutionMessage(message);
         setIsVoiceHelpVisible(false);
+        setIsCommandHistoryVisible(false);
+        appendCommandHistory(text, message);
         speakFeedback(message);
         return;
       }
@@ -394,6 +474,8 @@ export function CommandPanel({
       setRecognizedText(text.trim() || "未输入文本。");
       setExecutionMessage(repeatMessage);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, repeatMessage);
       speakFeedback(repeatMessage);
       return;
     }
@@ -414,6 +496,8 @@ export function CommandPanel({
         message: stopMessage
       }]);
       setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, stopMessage);
       speakFeedback(stopMessage);
       return;
     }
@@ -424,9 +508,11 @@ export function CommandPanel({
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
     setIsVoiceHelpVisible(false);
+    setIsCommandHistoryVisible(false);
     if (results.every(isRepeatableCommand)) {
       setLastRepeatableCommandText(text.trim());
     }
+    appendCommandHistory(text, message);
     speakFeedback(message);
   }
 
@@ -439,7 +525,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 19 重复指令"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 20 命令历史"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -556,6 +642,23 @@ export function CommandPanel({
                 <li key={example}>“{example}”</li>
               ))}
             </ul>
+          </div>
+        ) : null}
+        {isCommandHistoryVisible ? (
+          <div className="mt-3 rounded-md border border-canvas-line bg-canvas-wash p-3">
+            <p className="text-xs font-semibold text-canvas-muted">最近命令</p>
+            {commandHistory.length > 0 ? (
+              <ol className="mt-2 grid gap-2 text-sm">
+                {commandHistory.map((item) => (
+                  <li key={`${item.text}-${item.message}`}>
+                    <span className="font-semibold">“{item.text}”</span>
+                    <span className="block text-xs text-canvas-muted">{item.message}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-2 text-sm">还没有命令历史。</p>
+            )}
           </div>
         ) : null}
         {parsedCommands.length > 0 ? (
