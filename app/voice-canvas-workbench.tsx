@@ -98,10 +98,36 @@ export function VoiceCanvasWorkbench() {
   }, []);
 
   const handleSummarizeCanvas = useCallback(() => summarizeCanvasElements(elementsRef.current), []);
+  const handleExportSvg = useCallback(() => {
+    const svg = document.querySelector<SVGSVGElement>("svg[aria-label='VoiceCanvas AI SVG canvas preview']");
+
+    if (!svg) {
+      return "没有找到可导出的 SVG 画布。";
+    }
+
+    const clonedSvg = svg.cloneNode(true) as SVGSVGElement;
+    clonedSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+    const svgText = `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clonedSvg)}`;
+    const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "voicecanvas.svg";
+    link.click();
+    URL.revokeObjectURL(url);
+
+    return "已导出 SVG 文件。";
+  }, []);
 
   return (
     <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
-      <CommandPanel onCommand={handleCommand} onSummarizeCanvas={handleSummarizeCanvas} />
+      <CommandPanel
+        onCommand={handleCommand}
+        onExportSvg={handleExportSvg}
+        onSummarizeCanvas={handleSummarizeCanvas}
+      />
 
       <section className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
         <div className="flex flex-col gap-3 border-b border-canvas-line pb-3 sm:flex-row sm:items-center sm:justify-between">
