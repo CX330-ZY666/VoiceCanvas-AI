@@ -1,5 +1,6 @@
 import {
   type CanvasElement,
+  createArrowElement,
   createCanvasElement,
   getElementLabel,
   getNextElementId
@@ -180,9 +181,28 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
   }
 
   if (command.action === "connect") {
+    const from = findElement(elements, command.fromId);
+    const to = findElement(elements, command.toId);
+
+    if (!from || !to) {
+      return {
+        elements,
+        message: "没有找到要连接的对象，请确认两个对象编号都存在。"
+      };
+    }
+
+    if (from.type === "arrow" || to.type === "arrow") {
+      return {
+        elements,
+        message: "箭头连接目前只支持连接基础图形和文本对象。"
+      };
+    }
+
+    const nextId = getNextElementId(elements);
+
     return {
-      elements,
-      message: "箭头连接会在 PR 6 接入。当前请先验证解析结果。"
+      elements: [...elements, createArrowElement(nextId, from.id, to.id)],
+      message: `已创建箭头 ${nextId}，连接 ${from.id} 到 ${to.id}。`
     };
   }
 
