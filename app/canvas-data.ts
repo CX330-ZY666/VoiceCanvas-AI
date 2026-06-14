@@ -61,6 +61,63 @@ export const demoCanvasElements: CanvasElement[] = [
   }
 ];
 
+export const loginFlowTemplateElements: CanvasElement[] = [
+  {
+    id: "A",
+    type: "rect",
+    x: 450,
+    y: 90,
+    width: 150,
+    height: 62,
+    color: "#22c55e",
+    text: "开始"
+  },
+  {
+    id: "B",
+    type: "rect",
+    x: 450,
+    y: 190,
+    width: 180,
+    height: 70,
+    color: "#3b82f6",
+    text: "输入账号密码"
+  },
+  {
+    id: "C",
+    type: "diamond",
+    x: 450,
+    y: 315,
+    width: 160,
+    height: 110,
+    color: "#facc15",
+    text: "校验信息"
+  },
+  {
+    id: "D",
+    type: "rect",
+    x: 260,
+    y: 455,
+    width: 160,
+    height: 68,
+    color: "#22c55e",
+    text: "登录成功"
+  },
+  {
+    id: "E",
+    type: "rect",
+    x: 640,
+    y: 455,
+    width: 160,
+    height: 68,
+    color: "#ef4444",
+    text: "登录失败"
+  },
+  createArrowElement("F", "A", "B"),
+  createArrowElement("G", "B", "C"),
+  createArrowElement("H", "C", "D"),
+  createArrowElement("I", "C", "E")
+];
+
 export function getNextElementId(elements: CanvasElement[]) {
   const usedIds = new Set(elements.map((element) => element.id.toUpperCase()));
   let code = "A".charCodeAt(0);

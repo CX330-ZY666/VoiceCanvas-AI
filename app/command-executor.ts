@@ -3,7 +3,8 @@ import {
   createArrowElement,
   createCanvasElement,
   getElementLabel,
-  getNextElementId
+  getNextElementId,
+  loginFlowTemplateElements
 } from "./canvas-data";
 import type { DrawCommand } from "./command-parser";
 
@@ -223,9 +224,13 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
     };
   }
 
-  return {
-    elements,
-    message: "登录流程图模板会在 PR 9 接入。",
-    didChange: false
-  };
+  if (command.action === "generate_template") {
+    return {
+      elements: loginFlowTemplateElements,
+      message: "已生成登录流程图模板。",
+      didChange: true
+    };
+  }
+
+  return { elements, message: "暂不支持该指令。", didChange: false };
 }
