@@ -70,6 +70,14 @@ function isCancelCommand(text: string) {
   return /(取消|算了|不用|不要|放弃)/.test(text.replace(/\s+/g, ""));
 }
 
+function isRepeatCommand(text: string) {
+  return /(重复上一条|重复上一个|再来一次|再执行一次|再画一个|再做一次)/.test(text.replace(/\s+/g, ""));
+}
+
+function isRepeatableCommand(command: DrawCommand) {
+  return ["create", "update", "connect", "delete", "generate_template"].includes(command.action);
+}
+
 const voiceHelpExamples = [
   "画一个红色圆形",
   "在圆形 A 右边画一个蓝色矩形",
@@ -78,6 +86,7 @@ const voiceHelpExamples = [
   "删除最上面的图形",
   "画布里有什么",
   "生成一个登录流程图",
+  "重复上一条",
   "确认清空",
   "开启语音反馈",
   "关闭语音反馈"
@@ -146,6 +155,7 @@ export function CommandPanel({
   const [isSpeechFeedbackEnabled, setIsSpeechFeedbackEnabled] = useState(true);
   const [isVoiceHelpVisible, setIsVoiceHelpVisible] = useState(false);
   const [isClearConfirmationPending, setIsClearConfirmationPending] = useState(false);
+  const [lastRepeatableCommandText, setLastRepeatableCommandText] = useState("");
   const {
     message: speechFeedbackMessage,
     speak: speakSpeechFeedback,
@@ -257,6 +267,32 @@ export function CommandPanel({
       setIsClearConfirmationPending(false);
     }
 
+    if (isRepeatCommand(text)) {
+      if (!lastRepeatableCommandText) {
+        const message = "还没有可重复的绘图指令。";
+        setParsedCommands([{
+          action: "clarify",
+          message
+        }]);
+        setRecognizedText(text.trim() || "未输入文本。");
+        setExecutionMessage(message);
+        setIsVoiceHelpVisible(false);
+        speakFeedback(message);
+        return;
+      }
+
+      const results = parseCommandSequence(lastRepeatableCommandText);
+      const message = executeParsedCommands(results);
+      const repeatMessage = `已重复上一条指令：${lastRepeatableCommandText}。${message}`;
+      setInput(lastRepeatableCommandText);
+      setParsedCommands(results);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(repeatMessage);
+      setIsVoiceHelpVisible(false);
+      speakFeedback(repeatMessage);
+      return;
+    }
+
     if (applyAppControlCommand(text)) {
       return;
     }
@@ -280,8 +316,11 @@ export function CommandPanel({
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
     setIsVoiceHelpVisible(false);
+    if (results.every(isRepeatableCommand)) {
+      setLastRepeatableCommandText(text.trim());
+    }
     speakFeedback(message);
-  }, [applyAppControlCommand, executeParsedCommands, isClearConfirmationPending, onCommand, speakFeedback]);
+  }, [applyAppControlCommand, executeParsedCommands, isClearConfirmationPending, lastRepeatableCommandText, onCommand, speakFeedback]);
   const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
@@ -332,6 +371,33 @@ export function CommandPanel({
       setIsClearConfirmationPending(false);
     }
 
+    if (isRepeatCommand(text)) {
+      if (!lastRepeatableCommandText) {
+        const message = "还没有可重复的绘图指令。";
+        setInput(text);
+        setParsedCommands([{
+          action: "clarify",
+          message
+        }]);
+        setRecognizedText(text.trim() || "未输入文本。");
+        setExecutionMessage(message);
+        setIsVoiceHelpVisible(false);
+        speakFeedback(message);
+        return;
+      }
+
+      const results = parseCommandSequence(lastRepeatableCommandText);
+      const message = executeParsedCommands(results);
+      const repeatMessage = `已重复上一条指令：${lastRepeatableCommandText}。${message}`;
+      setInput(lastRepeatableCommandText);
+      setParsedCommands(results);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(repeatMessage);
+      setIsVoiceHelpVisible(false);
+      speakFeedback(repeatMessage);
+      return;
+    }
+
     if (applyAppControlCommand(text)) {
       setInput(text);
       return;
@@ -358,6 +424,9 @@ export function CommandPanel({
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
     setIsVoiceHelpVisible(false);
+    if (results.every(isRepeatableCommand)) {
+      setLastRepeatableCommandText(text.trim());
+    }
     speakFeedback(message);
   }
 
@@ -370,7 +439,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 18 清空确认"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 19 重复指令"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -472,6 +541,11 @@ export function CommandPanel({
         {isClearConfirmationPending ? (
           <p className="mt-2 rounded-md border border-[#f59e0b] bg-[#fffbeb] px-3 py-2 text-sm font-semibold text-[#92400e]">
             等待确认：请说“确认清空”或“取消”。
+          </p>
+        ) : null}
+        {lastRepeatableCommandText ? (
+          <p className="mt-2 text-xs text-canvas-muted">
+            可重复上一条：{lastRepeatableCommandText}
           </p>
         ) : null}
         {isVoiceHelpVisible ? (
