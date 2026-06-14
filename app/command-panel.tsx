@@ -106,6 +106,12 @@ type CommandHistoryItem = {
   message: string;
 };
 
+type ParseCommandResponse = {
+  commands?: DrawCommand[];
+  source?: "llm" | "local";
+  message?: string;
+};
+
 const voiceHelpExamples = [
   "画一个红色圆形",
   "在圆形 A 右边画一个蓝色矩形",
@@ -127,6 +133,49 @@ const voiceHelpExamples = [
 
 const clearConfirmationMessage = "清空画布会删除所有对象。请说“确认清空”继续，或说“取消”放弃。";
 const clearCancelledMessage = "已取消清空画布。";
+const parsingMessage = "正在调用大模型解析指令...";
+
+async function parseDrawCommands(text: string) {
+  try {
+    const response = await fetch("/api/parse-command", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text })
+    });
+
+    if (!response.ok) {
+      return {
+        commands: parseCommandSequence(text),
+        source: "local" as const,
+        message: "大模型解析暂时不可用，已切换到本地解析。"
+      };
+    }
+
+    const data = await response.json() as ParseCommandResponse;
+
+    return {
+      commands: Array.isArray(data.commands) && data.commands.length > 0
+        ? data.commands
+        : parseCommandSequence(text),
+      source: data.source ?? "local",
+      message: data.message
+    };
+  } catch {
+    return {
+      commands: parseCommandSequence(text),
+      source: "local" as const,
+      message: "大模型解析暂时不可用，已切换到本地解析。"
+    };
+  }
+}
+
+function buildExecutionMessage(message: string, source?: ParseCommandResponse["source"], parserMessage?: string) {
+  const sourceMessage = source === "llm" ? "大模型已解析。" : parserMessage;
+
+  return [sourceMessage, message].filter(Boolean).join(" ");
+}
 
 type AppControlCommand = {
   kind:
@@ -320,7 +369,7 @@ export function CommandPanel({
     speakSpeechFeedback,
     stopSpeechFeedback
   ]);
-  const handleSpeechText = useCallback((text: string) => {
+  const handleSpeechText = useCallback(async (text: string) => {
     setInput(text);
 
     const selectionTargetId = findSelectionTargetId(text);
@@ -403,9 +452,10 @@ export function CommandPanel({
         return;
       }
 
-      const results = parseCommandSequence(lastRepeatableCommandText);
+      setExecutionMessage(parsingMessage);
+      const { commands: results, source, message: parserMessage } = await parseDrawCommands(lastRepeatableCommandText);
       const message = executeParsedCommands(results);
-      const repeatMessage = `已重复上一条指令：${lastRepeatableCommandText}。${message}`;
+      const repeatMessage = `已重复上一条指令：${lastRepeatableCommandText}。${buildExecutionMessage(message, source, parserMessage)}`;
       setInput(lastRepeatableCommandText);
       setParsedCommands(results);
       setRecognizedText(text.trim() || "未输入文本。");
@@ -437,18 +487,19 @@ export function CommandPanel({
     }
 
     const resolvedText = resolveContextualCommand(text, selectedTargetId);
-    const results = parseCommandSequence(resolvedText);
+    setExecutionMessage(parsingMessage);
+    const { commands: results, source, message: parserMessage } = await parseDrawCommands(resolvedText);
     const message = executeParsedCommands(results);
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(message);
+    setExecutionMessage(buildExecutionMessage(message, source, parserMessage));
     setIsVoiceHelpVisible(false);
     setIsCommandHistoryVisible(false);
     if (results.every(isRepeatableCommand)) {
       setLastRepeatableCommandText(resolvedText.trim());
     }
-    appendCommandHistory(text, message);
-    speakFeedback(message);
+    appendCommandHistory(text, buildExecutionMessage(message, source, parserMessage));
+    speakFeedback(buildExecutionMessage(message, source, parserMessage));
   }, [
     appendCommandHistory,
     applyAppControlCommand,
@@ -464,7 +515,7 @@ export function CommandPanel({
 
   const feedback = useMemo(() => {
     if (parsedCommands.length === 0) {
-      return "输入文本指令后点击执行，可以查看本地规则解析结果。";
+      return "输入文本指令后点击执行，可以查看大模型解析后的结构化 JSON。";
     }
 
     if (executionMessage) {
@@ -479,7 +530,7 @@ export function CommandPanel({
     return `已拆解为 ${parsedCommands.length} 条指令。`;
   }, [executionMessage, parsedCommands]);
 
-  function executeTextCommand(text: string) {
+  async function executeTextCommand(text: string) {
     const selectionTargetId = findSelectionTargetId(text);
     if (selectionTargetId) {
       const message = `已选中对象 ${selectionTargetId}。接下来可以说“把它改成绿色”或“删除它”。`;
@@ -565,9 +616,10 @@ export function CommandPanel({
         return;
       }
 
-      const results = parseCommandSequence(lastRepeatableCommandText);
+      setExecutionMessage(parsingMessage);
+      const { commands: results, source, message: parserMessage } = await parseDrawCommands(lastRepeatableCommandText);
       const message = executeParsedCommands(results);
-      const repeatMessage = `已重复上一条指令：${lastRepeatableCommandText}。${message}`;
+      const repeatMessage = `已重复上一条指令：${lastRepeatableCommandText}。${buildExecutionMessage(message, source, parserMessage)}`;
       setInput(lastRepeatableCommandText);
       setParsedCommands(results);
       setRecognizedText(text.trim() || "未输入文本。");
@@ -602,22 +654,23 @@ export function CommandPanel({
     }
 
     const resolvedText = resolveContextualCommand(text, selectedTargetId);
-    const results = parseCommandSequence(resolvedText);
+    setExecutionMessage(parsingMessage);
+    const { commands: results, source, message: parserMessage } = await parseDrawCommands(resolvedText);
     const message = executeParsedCommands(results);
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(message);
+    setExecutionMessage(buildExecutionMessage(message, source, parserMessage));
     setIsVoiceHelpVisible(false);
     setIsCommandHistoryVisible(false);
     if (results.every(isRepeatableCommand)) {
       setLastRepeatableCommandText(resolvedText.trim());
     }
-    appendCommandHistory(text, message);
-    speakFeedback(message);
+    appendCommandHistory(text, buildExecutionMessage(message, source, parserMessage));
+    speakFeedback(buildExecutionMessage(message, source, parserMessage));
   }
 
   function executeCommand() {
-    executeTextCommand(input);
+    void executeTextCommand(input);
   }
 
   return (
@@ -625,7 +678,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 25 导出 SVG"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 27 大模型解析"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -680,7 +733,7 @@ export function CommandPanel({
           label="导出 SVG"
           onClick={() => {
             setInput("导出画布");
-            executeTextCommand("导出画布");
+            void executeTextCommand("导出画布");
           }}
         >
           <DownloadSimple size={18} weight="bold" />
@@ -689,7 +742,7 @@ export function CommandPanel({
           label="清空画布"
           onClick={() => {
             setInput("清空画布");
-            executeTextCommand("清空画布");
+            void executeTextCommand("清空画布");
           }}
         >
           <Broom size={18} weight="bold" />
@@ -698,7 +751,7 @@ export function CommandPanel({
           label="撤销"
           onClick={() => {
             setInput("撤销");
-            executeTextCommand("撤销");
+            void executeTextCommand("撤销");
           }}
         >
           <ArrowCounterClockwise size={18} weight="bold" />
