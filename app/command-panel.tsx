@@ -78,6 +78,22 @@ function isRepeatableCommand(command: DrawCommand) {
   return ["create", "update", "connect", "delete", "generate_template"].includes(command.action);
 }
 
+function findSelectionTargetId(text: string) {
+  return text.match(/(?:选中|选择|定位到|聚焦)\s*(?:对象|图形|箭头)?\s*([A-Z])/i)?.[1]?.toUpperCase();
+}
+
+function hasPronounTarget(text: string) {
+  return /(它|这个|那个|当前对象|选中的|选中对象)/.test(text);
+}
+
+function resolveContextualCommand(text: string, selectedTargetId: string) {
+  if (!selectedTargetId || !hasPronounTarget(text)) {
+    return text;
+  }
+
+  return text.replace(/它|这个图形|那个图形|这个对象|那个对象|当前对象|选中的对象|选中对象|这个|那个/g, selectedTargetId);
+}
+
 type CommandHistoryItem = {
   text: string;
   message: string;
@@ -88,6 +104,8 @@ const voiceHelpExamples = [
   "在圆形 A 右边画一个蓝色矩形",
   "连接 A 和 B",
   "把最右边的图形改成绿色",
+  "选中 A",
+  "把它改成绿色",
   "删除最上面的图形",
   "画布里有什么",
   "生成一个登录流程图",
@@ -177,6 +195,7 @@ export function CommandPanel({
   const [lastRepeatableCommandText, setLastRepeatableCommandText] = useState("");
   const [commandHistory, setCommandHistory] = useState<CommandHistoryItem[]>([]);
   const [isCommandHistoryVisible, setIsCommandHistoryVisible] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState("");
   const {
     message: speechFeedbackMessage,
     speak: speakSpeechFeedback,
@@ -293,6 +312,23 @@ export function CommandPanel({
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
+    const selectionTargetId = findSelectionTargetId(text);
+    if (selectionTargetId) {
+      const message = `已选中对象 ${selectionTargetId}。接下来可以说“把它改成绿色”或“删除它”。`;
+      setSelectedTargetId(selectionTargetId);
+      setParsedCommands([{
+        action: "clarify",
+        message
+      }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(message);
+      setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, message);
+      speakFeedback(message);
+      return;
+    }
+
     if (isClearConfirmationPending && isConfirmClearCommand(text)) {
       const message = onCommand?.({ action: "clear" }) ?? "";
       setIsClearConfirmationPending(false);
@@ -374,7 +410,8 @@ export function CommandPanel({
       return;
     }
 
-    const results = parseCommandSequence(text);
+    const resolvedText = resolveContextualCommand(text, selectedTargetId);
+    const results = parseCommandSequence(resolvedText);
     const message = executeParsedCommands(results);
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
@@ -382,7 +419,7 @@ export function CommandPanel({
     setIsVoiceHelpVisible(false);
     setIsCommandHistoryVisible(false);
     if (results.every(isRepeatableCommand)) {
-      setLastRepeatableCommandText(text.trim());
+      setLastRepeatableCommandText(resolvedText.trim());
     }
     appendCommandHistory(text, message);
     speakFeedback(message);
@@ -393,6 +430,7 @@ export function CommandPanel({
     isClearConfirmationPending,
     lastRepeatableCommandText,
     onCommand,
+    selectedTargetId,
     speakFeedback
   ]);
   const speech = useSpeechRecognition(handleSpeechText);
@@ -415,6 +453,24 @@ export function CommandPanel({
   }, [executionMessage, parsedCommands]);
 
   function executeTextCommand(text: string) {
+    const selectionTargetId = findSelectionTargetId(text);
+    if (selectionTargetId) {
+      const message = `已选中对象 ${selectionTargetId}。接下来可以说“把它改成绿色”或“删除它”。`;
+      setSelectedTargetId(selectionTargetId);
+      setInput(text);
+      setParsedCommands([{
+        action: "clarify",
+        message
+      }]);
+      setRecognizedText(text.trim() || "未输入文本。");
+      setExecutionMessage(message);
+      setIsVoiceHelpVisible(false);
+      setIsCommandHistoryVisible(false);
+      appendCommandHistory(text, message);
+      speakFeedback(message);
+      return;
+    }
+
     if (isClearConfirmationPending && isConfirmClearCommand(text)) {
       const message = onCommand?.({ action: "clear" }) ?? "";
       setIsClearConfirmationPending(false);
@@ -502,7 +558,8 @@ export function CommandPanel({
       return;
     }
 
-    const results = parseCommandSequence(text);
+    const resolvedText = resolveContextualCommand(text, selectedTargetId);
+    const results = parseCommandSequence(resolvedText);
     const message = executeParsedCommands(results);
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
@@ -510,7 +567,7 @@ export function CommandPanel({
     setIsVoiceHelpVisible(false);
     setIsCommandHistoryVisible(false);
     if (results.every(isRepeatableCommand)) {
-      setLastRepeatableCommandText(text.trim());
+      setLastRepeatableCommandText(resolvedText.trim());
     }
     appendCommandHistory(text, message);
     speakFeedback(message);
@@ -525,7 +582,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 20 命令历史"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 21 上下文选中"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -632,6 +689,11 @@ export function CommandPanel({
         {lastRepeatableCommandText ? (
           <p className="mt-2 text-xs text-canvas-muted">
             可重复上一条：{lastRepeatableCommandText}
+          </p>
+        ) : null}
+        {selectedTargetId ? (
+          <p className="mt-2 text-xs text-canvas-muted">
+            当前选中：对象 {selectedTargetId}
           </p>
         ) : null}
         {isVoiceHelpVisible ? (
