@@ -5,6 +5,8 @@ import {
   PaperPlaneTilt,
   StopCircle
 } from "@phosphor-icons/react/dist/ssr";
+import { demoCanvasElements, getElementLabel } from "./canvas-data";
+import { SvgCanvas } from "./svg-canvas";
 
 const exampleCommands = [
   "画一个红色圆形",
@@ -15,22 +17,17 @@ const exampleCommands = [
   "生成一个登录流程图"
 ];
 
-const placeholderObjects = [
-  {
-    id: "A",
-    type: "圆形",
-    color: "红色",
-    position: "x: 220, y: 200",
-    description: "示例对象，后续 PR 接入真实状态"
-  },
-  {
-    id: "B",
-    type: "矩形",
-    color: "蓝色",
-    position: "x: 420, y: 200",
-    description: "示例对象，后续 PR 接入真实状态"
-  }
-];
+const visibleObjects = demoCanvasElements.map((item) => ({
+  id: item.id,
+  type: getElementLabel(item),
+  color: item.color ?? "黑色",
+  position:
+    item.type === "arrow" ? `${item.fromId} -> ${item.toId}` : `x: ${item.x}, y: ${item.y}`,
+  description:
+    item.type === "arrow"
+      ? `箭头：${item.fromId} 指向 ${item.toId}`
+      : `${getElementLabel(item)}：${item.color ?? "黑色"}`
+}));
 
 function ToolbarButton({
   label,
@@ -71,7 +68,8 @@ export default function Home() {
                 VoiceCanvas AI
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-canvas-muted">
-                用语音创建流程图、结构图和简单示意图。当前 PR 仅提供基础页面骨架，后续逐步接入画布、解析器和语音输入。
+                用语音创建流程图、结构图和简单示意图。当前 PR 接入 SVG
+                画布示例渲染，后续再逐步实现指令解析与交互执行。
               </p>
             </div>
             <div className="flex w-fit items-center gap-2 rounded-md border border-canvas-line bg-canvas-wash px-3 py-2 text-sm text-canvas-muted">
@@ -85,7 +83,7 @@ export default function Home() {
           <aside className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
             <div className="flex items-center justify-between border-b border-canvas-line pb-3">
               <h2 className="text-base font-bold">控制区</h2>
-              <span className="text-xs font-medium text-canvas-muted">PR 1 占位</span>
+              <span className="text-xs font-medium text-canvas-muted">PR 2 占位</span>
             </div>
             <div className="mt-4 grid gap-3">
               <ToolbarButton label="开始语音输入">
@@ -110,9 +108,11 @@ export default function Home() {
               id="command"
               placeholder="例如：画一个红色圆形"
             />
-            <ToolbarButton label="执行指令" variant="primary">
-              <PaperPlaneTilt size={18} weight="bold" />
-            </ToolbarButton>
+            <div className="mt-3">
+              <ToolbarButton label="执行指令" variant="primary">
+                <PaperPlaneTilt size={18} weight="bold" />
+              </ToolbarButton>
+            </div>
 
             <div className="mt-5 rounded-md border border-canvas-line bg-canvas-wash p-3">
               <p className="text-xs font-semibold text-canvas-muted">当前识别文本</p>
@@ -120,7 +120,7 @@ export default function Home() {
             </div>
             <div className="mt-3 rounded-md border border-canvas-line bg-white p-3">
               <p className="text-xs font-semibold text-canvas-muted">系统反馈</p>
-              <p className="mt-2 text-sm">项目已初始化，画布功能将在 PR 2 接入。</p>
+              <p className="mt-2 text-sm">SVG 画布已接入，当前展示基础图形示例。</p>
             </div>
           </aside>
 
@@ -129,15 +129,8 @@ export default function Home() {
               <h2 className="text-base font-bold">SVG 画布</h2>
               <span className="font-mono text-xs text-canvas-muted">900 x 600</span>
             </div>
-            <div className="mt-4 overflow-hidden rounded-md border border-dashed border-canvas-line bg-canvas-wash p-3">
-              <div className="grid aspect-[3/2] min-h-[320px] place-items-center rounded bg-white">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-canvas-ink">画布占位区</p>
-                  <p className="mt-2 max-w-md text-sm leading-6 text-canvas-muted">
-                    PR 2 会在这里接入 SVG 画布和基础图形渲染，当前页面用于确认整体布局与运行链路。
-                  </p>
-                </div>
-              </div>
+            <div className="mt-4 overflow-hidden rounded-md border border-canvas-line bg-canvas-wash p-3">
+              <SvgCanvas elements={demoCanvasElements} />
             </div>
           </section>
 
@@ -147,7 +140,7 @@ export default function Home() {
               <span className="text-xs font-medium text-canvas-muted">示例数据</span>
             </div>
             <div className="mt-4 divide-y divide-canvas-line overflow-hidden rounded-md border border-canvas-line">
-              {placeholderObjects.map((item) => (
+              {visibleObjects.map((item) => (
                 <div className="grid gap-2 bg-white p-3 text-sm" key={item.id}>
                   <div className="flex items-center justify-between">
                     <span className="font-bold">对象 {item.id}</span>
