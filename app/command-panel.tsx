@@ -5,9 +5,10 @@ import {
   Broom,
   Microphone,
   PaperPlaneTilt,
+  Repeat,
   StopCircle
 } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { type DrawCommand, parseCommand } from "./command-parser";
 import { useSpeechRecognition } from "./use-speech-recognition";
 
@@ -54,6 +55,10 @@ function commandSummary(command: DrawCommand) {
   return summaries[command.action];
 }
 
+function isStopSpeechCommand(text: string) {
+  return /(停止|结束|关闭).*(语音|监听|输入)?/.test(text);
+}
+
 export function CommandPanel({
   onCommand
 }: Readonly<{
@@ -63,10 +68,25 @@ export function CommandPanel({
   const [recognizedText, setRecognizedText] = useState("等待语音输入。");
   const [parsedCommand, setParsedCommand] = useState<DrawCommand | null>(null);
   const [executionMessage, setExecutionMessage] = useState("");
-  const speech = useSpeechRecognition((text) => {
+  const handleSpeechText = useCallback((text: string) => {
     setInput(text);
-    executeTextCommand(text);
-  });
+
+    if (isStopSpeechCommand(text)) {
+      setRecognizedText(text);
+      setExecutionMessage("已停止连续语音输入。");
+      setParsedCommand({
+        action: "clarify",
+        message: "已停止连续语音输入。"
+      });
+      return;
+    }
+
+    const result = parseCommand(text);
+    setParsedCommand(result);
+    setRecognizedText(text.trim() || "未输入文本。");
+    setExecutionMessage(onCommand?.(result) ?? "");
+  }, [onCommand]);
+  const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
     if (!parsedCommand) {
@@ -80,6 +100,18 @@ export function CommandPanel({
   }, [executionMessage, parsedCommand]);
 
   function executeTextCommand(text: string) {
+    if (isStopSpeechCommand(text)) {
+      speech.stopListening();
+      setInput(text);
+      setRecognizedText(text);
+      setExecutionMessage("已停止连续语音输入。");
+      setParsedCommand({
+        action: "clarify",
+        message: "已停止连续语音输入。"
+      });
+      return;
+    }
+
     const result = parseCommand(text);
     setParsedCommand(result);
     setRecognizedText(text.trim() || "未输入文本。");
@@ -95,7 +127,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isListening ? "正在听" : "PR 8 语音"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 11 连续语音"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -107,6 +139,15 @@ export function CommandPanel({
           }}
         >
           <Microphone size={18} weight="bold" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="连续语音模式"
+          onClick={() => {
+            speech.startListening({ continuous: true });
+            setRecognizedText(speech.isSupported ? "连续语音模式已开启。" : speech.message);
+          }}
+        >
+          <Repeat size={18} weight="bold" />
         </ToolbarButton>
         <ToolbarButton
           label="停止语音输入"
@@ -155,7 +196,9 @@ export function CommandPanel({
 
       <div className="mt-5 rounded-md border border-canvas-line bg-canvas-wash p-3">
         <p className="text-xs font-semibold text-canvas-muted">当前识别文本</p>
-        <p className="mt-2 text-sm">{speech.isListening ? speech.message : recognizedText}</p>
+        <p className="mt-2 text-sm">
+          {speech.isListening || speech.isContinuous ? speech.message : recognizedText}
+        </p>
       </div>
       <div className="mt-3 rounded-md border border-canvas-line bg-white p-3">
         <p className="text-xs font-semibold text-canvas-muted">系统反馈</p>
