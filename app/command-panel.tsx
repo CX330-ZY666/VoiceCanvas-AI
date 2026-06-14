@@ -62,13 +62,31 @@ function isStopSpeechCommand(text: string) {
   return /(停止|结束|关闭).*(语音|监听|输入)?/.test(text);
 }
 
+const voiceHelpExamples = [
+  "画一个红色圆形",
+  "在圆形 A 右边画一个蓝色矩形",
+  "连接 A 和 B",
+  "把最右边的图形改成绿色",
+  "删除最上面的图形",
+  "生成一个登录流程图",
+  "开启语音反馈",
+  "关闭语音反馈"
+];
+
 type AppControlCommand = {
-  kind: "enable_feedback" | "disable_feedback" | "stop_feedback";
+  kind: "enable_feedback" | "disable_feedback" | "stop_feedback" | "show_help";
   message: string;
 };
 
 function parseAppControlCommand(text: string): AppControlCommand | null {
   const normalizedText = text.replace(/\s+/g, "");
+
+  if (/(帮助|说明|怎么用|能说什么|支持什么|支持哪些|指令列表|命令列表)/.test(normalizedText)) {
+    return {
+      kind: "show_help",
+      message: "你可以说：画一个红色圆形、连接 A 和 B、把最右边的图形改成绿色，或生成一个登录流程图。"
+    };
+  }
 
   if (/(开启|打开|启动).*(语音反馈|语音播报|播报|朗读)/.test(normalizedText)) {
     return {
@@ -104,6 +122,7 @@ export function CommandPanel({
   const [parsedCommands, setParsedCommands] = useState<DrawCommand[]>([]);
   const [executionMessage, setExecutionMessage] = useState("");
   const [isSpeechFeedbackEnabled, setIsSpeechFeedbackEnabled] = useState(true);
+  const [isVoiceHelpVisible, setIsVoiceHelpVisible] = useState(false);
   const {
     message: speechFeedbackMessage,
     speak: speakSpeechFeedback,
@@ -141,10 +160,18 @@ export function CommandPanel({
 
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(controlCommand.message);
+    setIsVoiceHelpVisible(controlCommand.kind === "show_help");
     setParsedCommands([{
       action: "clarify",
       message: controlCommand.message
     }]);
+
+    if (controlCommand.kind === "show_help") {
+      if (isSpeechFeedbackEnabled) {
+        speakSpeechFeedback(controlCommand.message);
+      }
+      return true;
+    }
 
     if (controlCommand.kind === "enable_feedback") {
       setIsSpeechFeedbackEnabled(true);
@@ -159,7 +186,7 @@ export function CommandPanel({
     }
 
     return true;
-  }, [speakSpeechFeedback, stopSpeechFeedback]);
+  }, [isSpeechFeedbackEnabled, speakSpeechFeedback, stopSpeechFeedback]);
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
@@ -175,6 +202,7 @@ export function CommandPanel({
         action: "clarify",
         message: stopMessage
       }]);
+      setIsVoiceHelpVisible(false);
       speakFeedback(stopMessage);
       return;
     }
@@ -184,6 +212,7 @@ export function CommandPanel({
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
+    setIsVoiceHelpVisible(false);
     speakFeedback(message);
   }, [applyAppControlCommand, executeParsedCommands, speakFeedback]);
   const speech = useSpeechRecognition(handleSpeechText);
@@ -221,6 +250,7 @@ export function CommandPanel({
         action: "clarify",
         message: stopMessage
       }]);
+      setIsVoiceHelpVisible(false);
       speakFeedback(stopMessage);
       return;
     }
@@ -230,6 +260,7 @@ export function CommandPanel({
     setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
+    setIsVoiceHelpVisible(false);
     speakFeedback(message);
   }
 
@@ -242,7 +273,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 15 语音控制"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 16 语音帮助"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
@@ -341,6 +372,16 @@ export function CommandPanel({
         <p className="mt-2 text-xs text-canvas-muted">
           语音反馈：{isSpeechFeedbackEnabled ? speechFeedbackMessage : "已关闭"}
         </p>
+        {isVoiceHelpVisible ? (
+          <div className="mt-3 rounded-md border border-canvas-line bg-canvas-wash p-3">
+            <p className="text-xs font-semibold text-canvas-muted">可说的指令示例</p>
+            <ul className="mt-2 grid gap-1 text-sm">
+              {voiceHelpExamples.map((example) => (
+                <li key={example}>“{example}”</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {parsedCommands.length > 0 ? (
           <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-canvas-wash p-3 text-xs leading-5 text-canvas-ink">
             {JSON.stringify(parsedCommands.length === 1 ? parsedCommands[0] : parsedCommands, null, 2)}
