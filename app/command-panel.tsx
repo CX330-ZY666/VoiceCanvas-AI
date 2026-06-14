@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { type DrawCommand, parseCommand } from "./command-parser";
+import { useSpeechRecognition } from "./use-speech-recognition";
 
 function ToolbarButton({
   label,
@@ -62,6 +63,10 @@ export function CommandPanel({
   const [recognizedText, setRecognizedText] = useState("等待语音输入。");
   const [parsedCommand, setParsedCommand] = useState<DrawCommand | null>(null);
   const [executionMessage, setExecutionMessage] = useState("");
+  const speech = useSpeechRecognition((text) => {
+    setInput(text);
+    executeTextCommand(text);
+  });
 
   const feedback = useMemo(() => {
     if (!parsedCommand) {
@@ -89,18 +94,26 @@ export function CommandPanel({
     <aside className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
-        <span className="text-xs font-medium text-canvas-muted">PR 7 撤销</span>
+        <span className="text-xs font-medium text-canvas-muted">
+          {speech.isListening ? "正在听" : "PR 8 语音"}
+        </span>
       </div>
       <div className="mt-4 grid gap-3">
         <ToolbarButton
           label="开始语音输入"
-          onClick={() => setRecognizedText("语音输入将在 PR 8 接入。")}
+          onClick={() => {
+            speech.startListening();
+            setRecognizedText(speech.isSupported ? "正在听，请说出绘图指令。" : speech.message);
+          }}
         >
           <Microphone size={18} weight="bold" />
         </ToolbarButton>
         <ToolbarButton
           label="停止语音输入"
-          onClick={() => setRecognizedText("语音输入尚未开始。")}
+          onClick={() => {
+            speech.stopListening();
+            setRecognizedText("已停止语音输入。");
+          }}
         >
           <StopCircle size={18} weight="bold" />
         </ToolbarButton>
@@ -142,7 +155,7 @@ export function CommandPanel({
 
       <div className="mt-5 rounded-md border border-canvas-line bg-canvas-wash p-3">
         <p className="text-xs font-semibold text-canvas-muted">当前识别文本</p>
-        <p className="mt-2 text-sm">{recognizedText}</p>
+        <p className="mt-2 text-sm">{speech.isListening ? speech.message : recognizedText}</p>
       </div>
       <div className="mt-3 rounded-md border border-canvas-line bg-white p-3">
         <p className="text-xs font-semibold text-canvas-muted">系统反馈</p>
