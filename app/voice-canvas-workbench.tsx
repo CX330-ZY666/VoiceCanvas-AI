@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type CanvasElement,
   createDemoElement,
@@ -17,40 +17,63 @@ import { SvgCanvas } from "./svg-canvas";
 export function VoiceCanvasWorkbench() {
   const [elements, setElements] = useState<CanvasElement[]>(demoCanvasElements);
   const [history, setHistory] = useState<CanvasElement[][]>([]);
+  const elementsRef = useRef(elements);
+  const historyRef = useRef(history);
+
+  useEffect(() => {
+    elementsRef.current = elements;
+  }, [elements]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   function addDemoObject() {
     setElements((current) => {
       const nextId = getNextElementId(current);
       const createdCount = current.filter((element) => element.type !== "arrow").length;
+      const nextElements = [...current, createDemoElement(nextId, createdCount)];
 
       setHistory((items) => [...items, current]);
-      return [...current, createDemoElement(nextId, createdCount)];
+      elementsRef.current = nextElements;
+      historyRef.current = [...historyRef.current, current];
+      return nextElements;
     });
   }
 
-  function handleCommand(command: DrawCommand) {
+  const handleCommand = useCallback((command: DrawCommand) => {
+    const currentElements = elementsRef.current;
+    const currentHistory = historyRef.current;
+
     if (command.action === "undo") {
-      if (history.length === 0) {
+      if (currentHistory.length === 0) {
         return "没有可撤销的操作。";
       }
 
-      const previous = history[history.length - 1];
+      const previous = currentHistory[currentHistory.length - 1];
+      const nextHistory = currentHistory.slice(0, -1);
+
+      elementsRef.current = previous;
+      historyRef.current = nextHistory;
       setElements(previous);
-      setHistory((items) => items.slice(0, -1));
+      setHistory(nextHistory);
 
       return "已撤销上一步操作。";
     }
 
-    const result = executeCommand(elements, command);
+    const result = executeCommand(currentElements, command);
 
     if (result.didChange) {
-      setHistory((items) => [...items, elements]);
+      const nextHistory = [...currentHistory, currentElements];
+      historyRef.current = nextHistory;
+      setHistory(nextHistory);
     }
 
+    elementsRef.current = result.elements;
     setElements(result.elements);
 
     return result.message;
-  }
+  }, []);
 
   return (
     <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
