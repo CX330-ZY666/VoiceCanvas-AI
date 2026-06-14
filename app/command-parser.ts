@@ -1,6 +1,7 @@
 import type { ShapeType } from "./canvas-data";
 
 type Relation = "leftOf" | "rightOf" | "above" | "below";
+export type SpatialTargetQuery = "leftmost" | "rightmost" | "topmost" | "bottommost";
 
 export type DrawCommand =
   | {
@@ -16,7 +17,7 @@ export type DrawCommand =
   | {
       action: "update";
       targetId?: string;
-      targetQuery?: string;
+      targetQuery?: SpatialTargetQuery;
       properties: {
         color?: string;
         move?: "left" | "right" | "up" | "down";
@@ -31,7 +32,7 @@ export type DrawCommand =
   | {
       action: "delete";
       targetId?: string;
-      targetQuery?: string;
+      targetQuery?: SpatialTargetQuery;
     }
   | {
       action: "clear";
@@ -110,6 +111,26 @@ function findShape(input: string) {
 
 function findTargetId(input: string) {
   return input.match(/[A-Z]/i)?.[0]?.toUpperCase();
+}
+
+function findSpatialTargetQuery(input: string): SpatialTargetQuery | undefined {
+  if (input.includes("最右")) {
+    return "rightmost";
+  }
+
+  if (input.includes("最左")) {
+    return "leftmost";
+  }
+
+  if (input.includes("最上")) {
+    return "topmost";
+  }
+
+  if (input.includes("最下")) {
+    return "bottommost";
+  }
+
+  return undefined;
 }
 
 function hasAmbiguousReference(input: string) {
@@ -191,9 +212,14 @@ export function parseCommand(input: string): DrawCommand {
 
   if (command.includes("删除")) {
     const targetId = findTargetId(command);
+    const targetQuery = findSpatialTargetQuery(command);
 
     if (targetId) {
       return { action: "delete", targetId };
+    }
+
+    if (targetQuery) {
+      return { action: "delete", targetQuery };
     }
 
     return {
@@ -204,9 +230,10 @@ export function parseCommand(input: string): DrawCommand {
 
   if (command.includes("改成") || command.includes("变成")) {
     const targetId = findTargetId(command);
+    const targetQuery = findSpatialTargetQuery(command);
     const color = findColor(command);
 
-    if (!targetId && (color || hasAmbiguousReference(command))) {
+    if (!targetId && !targetQuery && (color || hasAmbiguousReference(command))) {
       return {
         action: "clarify",
         message: clarifyTargetMessage("update")
@@ -217,6 +244,14 @@ export function parseCommand(input: string): DrawCommand {
       return {
         action: "update",
         targetId,
+        properties: { color }
+      };
+    }
+
+    if (targetQuery && color) {
+      return {
+        action: "update",
+        targetQuery,
         properties: { color }
       };
     }
@@ -231,8 +266,22 @@ export function parseCommand(input: string): DrawCommand {
     };
   }
 
+  const spatialMoveMatch = command.match(/(最左|最右|最上|最下).*?(?:往|向)?(左|右|上|下)移/);
+  if (spatialMoveMatch) {
+    const targetQuery = findSpatialTargetQuery(spatialMoveMatch[1]);
+
+    if (targetQuery) {
+      return {
+        action: "update",
+        targetQuery,
+        properties: { move: moveMap[spatialMoveMatch[2] as keyof typeof moveMap] }
+      };
+    }
+  }
+
   const targetId = findTargetId(command);
-  if (!targetId && hasAmbiguousReference(command) && (command.includes("移动") || command.includes("放大") || command.includes("缩小"))) {
+  const targetQuery = findSpatialTargetQuery(command);
+  if (!targetId && !targetQuery && hasAmbiguousReference(command) && (command.includes("移动") || command.includes("放大") || command.includes("缩小"))) {
     return {
       action: "clarify",
       message: clarifyTargetMessage("update")
@@ -243,6 +292,14 @@ export function parseCommand(input: string): DrawCommand {
     return {
       action: "update",
       targetId,
+      properties: { scale: command.includes("放大") ? "up" : "down" }
+    };
+  }
+
+  if (targetQuery && (command.includes("放大") || command.includes("缩小"))) {
+    return {
+      action: "update",
+      targetQuery,
       properties: { scale: command.includes("放大") ? "up" : "down" }
     };
   }

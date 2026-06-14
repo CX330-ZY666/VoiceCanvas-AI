@@ -7,6 +7,7 @@ import {
   loginFlowTemplateElements
 } from "./canvas-data";
 import type { DrawCommand } from "./command-parser";
+import type { SpatialTargetQuery } from "./command-parser";
 
 const MOVE_DISTANCE = 40;
 const SCALE_RATIO = 1.2;
@@ -23,6 +24,38 @@ function findElement(elements: CanvasElement[], id?: string) {
   }
 
   return elements.find((element) => element.id.toUpperCase() === id.toUpperCase());
+}
+
+function findElementBySpatialQuery(elements: CanvasElement[], query?: SpatialTargetQuery) {
+  if (!query) {
+    return undefined;
+  }
+
+  const candidates = elements.filter((element) => element.type !== "arrow");
+
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  return candidates.reduce((selected, current) => {
+    if (query === "rightmost") {
+      return current.x > selected.x ? current : selected;
+    }
+
+    if (query === "leftmost") {
+      return current.x < selected.x ? current : selected;
+    }
+
+    if (query === "topmost") {
+      return current.y < selected.y ? current : selected;
+    }
+
+    return current.y > selected.y ? current : selected;
+  });
+}
+
+function findTargetElement(elements: CanvasElement[], command: { targetId?: string; targetQuery?: SpatialTargetQuery }) {
+  return findElement(elements, command.targetId) ?? findElementBySpatialQuery(elements, command.targetQuery);
 }
 
 function getDefaultPosition(elements: CanvasElement[]) {
@@ -130,7 +163,7 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
   }
 
   if (command.action === "update") {
-    const target = findElement(elements, command.targetId);
+    const target = findTargetElement(elements, command);
 
     if (!target) {
       return {
@@ -170,7 +203,7 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
   }
 
   if (command.action === "delete") {
-    const target = findElement(elements, command.targetId);
+    const target = findTargetElement(elements, command);
 
     if (!target) {
       return {
