@@ -22,6 +22,7 @@ export type DrawCommand =
         color?: string;
         move?: "left" | "right" | "up" | "down";
         scale?: "up" | "down";
+        text?: string;
       };
     }
   | {
@@ -133,6 +134,23 @@ function findSpatialTargetQuery(input: string): SpatialTargetQuery | undefined {
   return undefined;
 }
 
+function findLabelText(input: string) {
+  const quotedText = input.match(/[“"']([^”"']+)[”"']/)?.[1]?.trim();
+
+  if (quotedText) {
+    return quotedText;
+  }
+
+  const labelMatch =
+    input.match(/(?:文字|文本|标签)(?:改成|设为|设置为|写成|为|成)?(.+)$/) ??
+    input.match(/(?:标注|命名为|叫做)(.+)$/);
+  const labelText = labelMatch?.[1]
+    ?.replace(/^(为|成|叫|做|是|:|：|\s)+/, "")
+    .trim();
+
+  return labelText || undefined;
+}
+
 function hasAmbiguousReference(input: string) {
   return ["这个", "那个", "这条", "那条", "它", "图形", "线"].some((label) => input.includes(label));
 }
@@ -226,6 +244,38 @@ export function parseCommand(input: string): DrawCommand {
       action: "clarify",
       message: clarifyTargetMessage("delete")
     };
+  }
+
+  if (command.includes("文字") || command.includes("文本") || command.includes("标签") || command.includes("标注") || command.includes("命名为") || command.includes("叫做")) {
+    const targetId = findTargetId(command);
+    const targetQuery = findSpatialTargetQuery(command);
+    const text = findLabelText(command);
+
+    if (!targetId && !targetQuery) {
+      return {
+        action: "clarify",
+        message: clarifyTargetMessage("update")
+      };
+    }
+
+    if (!text) {
+      return {
+        action: "clarify",
+        message: "我没有找到要写入的文字。你可以说“把 A 的文字改成开始”。"
+      };
+    }
+
+    return targetId
+      ? {
+          action: "update",
+          targetId,
+          properties: { text }
+        }
+      : {
+          action: "update",
+          targetQuery,
+          properties: { text }
+        };
   }
 
   if (command.includes("改成") || command.includes("变成")) {

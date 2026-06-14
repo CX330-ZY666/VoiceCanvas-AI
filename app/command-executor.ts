@@ -192,8 +192,20 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
         nextElement = scaleElement(nextElement, command.properties.scale);
       }
 
+      if (command.properties.text !== undefined) {
+        nextElement = { ...nextElement, text: command.properties.text };
+      }
+
       return nextElement;
     });
+
+    if (command.properties.text !== undefined) {
+      return {
+        elements: updatedElements,
+        message: `已将${getElementLabel(target)} ${target.id} 的文字改成“${command.properties.text}”。`,
+        didChange: true
+      };
+    }
 
     return {
       elements: updatedElements,
