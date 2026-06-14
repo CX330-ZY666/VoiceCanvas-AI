@@ -36,6 +36,11 @@ export type DrawCommand =
       targetQuery?: SpatialTargetQuery;
     }
   | {
+      action: "duplicate";
+      targetId?: string;
+      targetQuery?: SpatialTargetQuery;
+    }
+  | {
       action: "clear";
     }
   | {
@@ -243,6 +248,24 @@ export function parseCommand(input: string): DrawCommand {
     return {
       action: "clarify",
       message: clarifyTargetMessage("delete")
+    };
+  }
+
+  if (command.includes("复制") || command.includes("拷贝") || command.includes("再来一个")) {
+    const targetId = findTargetId(command);
+    const targetQuery = findSpatialTargetQuery(command);
+
+    if (targetId) {
+      return { action: "duplicate", targetId };
+    }
+
+    if (targetQuery) {
+      return { action: "duplicate", targetQuery };
+    }
+
+    return {
+      action: "clarify",
+      message: "我没有找到要复制的对象。你可以说“复制 A”或“复制最右边的图形”。"
     };
   }
 

@@ -49,6 +49,7 @@ function commandSummary(command: DrawCommand) {
     update: "已解析为修改对象指令。",
     connect: "已解析为连接对象指令。",
     delete: "已解析为删除对象指令。",
+    duplicate: "已解析为复制对象指令。",
     clear: "已解析为清空画布指令。",
     undo: "已解析为撤销指令。",
     generate_template: "已解析为生成模板指令。",
@@ -75,7 +76,7 @@ function isRepeatCommand(text: string) {
 }
 
 function isRepeatableCommand(command: DrawCommand) {
-  return ["create", "update", "connect", "delete", "generate_template"].includes(command.action);
+  return ["create", "update", "connect", "delete", "duplicate", "generate_template"].includes(command.action);
 }
 
 function findSelectionTargetId(text: string) {

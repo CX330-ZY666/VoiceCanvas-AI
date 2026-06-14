@@ -129,6 +129,15 @@ function removeElementAndRelatedArrows(elements: CanvasElement[], targetId: stri
   });
 }
 
+function duplicateElement(element: CanvasElement, id: string): CanvasElement {
+  return {
+    ...element,
+    id,
+    x: element.x + 44,
+    y: element.y + 44
+  };
+}
+
 export function executeCommand(elements: CanvasElement[], command: DrawCommand): ExecuteResult {
   if (command.action === "clarify") {
     return { elements, message: command.message, didChange: false };
@@ -228,6 +237,34 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
     return {
       elements: removeElementAndRelatedArrows(elements, target.id),
       message: `已删除${getElementLabel(target)} ${target.id}，相关箭头也会一并移除。`,
+      didChange: true
+    };
+  }
+
+  if (command.action === "duplicate") {
+    const target = findTargetElement(elements, command);
+
+    if (!target) {
+      return {
+        elements,
+        message: "没有找到要复制的对象，请使用对象编号，例如“复制 A”。",
+        didChange: false
+      };
+    }
+
+    if (target.type === "arrow") {
+      return {
+        elements,
+        message: "暂不支持直接复制箭头，请复制基础图形后重新连接。",
+        didChange: false
+      };
+    }
+
+    const nextId = getNextElementId(elements);
+
+    return {
+      elements: [...elements, duplicateElement(target, nextId)],
+      message: `已复制${getElementLabel(target)} ${target.id}，生成新对象 ${nextId}。`,
       didChange: true
     };
   }
