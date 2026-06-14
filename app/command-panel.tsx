@@ -9,7 +9,7 @@ import {
   StopCircle
 } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
-import { type DrawCommand, parseCommand } from "./command-parser";
+import { type DrawCommand, parseCommandSequence } from "./command-parser";
 import { useSpeechRecognition } from "./use-speech-recognition";
 
 function ToolbarButton({
@@ -66,38 +66,62 @@ export function CommandPanel({
 }>) {
   const [input, setInput] = useState("画一个红色圆形");
   const [recognizedText, setRecognizedText] = useState("等待语音输入。");
-  const [parsedCommand, setParsedCommand] = useState<DrawCommand | null>(null);
+  const [parsedCommands, setParsedCommands] = useState<DrawCommand[]>([]);
   const [executionMessage, setExecutionMessage] = useState("");
+  const executeParsedCommands = useCallback((commands: DrawCommand[]) => {
+    if (!onCommand) {
+      return "";
+    }
+
+    const messages: string[] = [];
+
+    for (const command of commands) {
+      const message = onCommand(command);
+      messages.push(message);
+
+      if (command.action === "clarify") {
+        break;
+      }
+    }
+
+    return messages.join(" ");
+  }, [onCommand]);
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
 
     if (isStopSpeechCommand(text)) {
       setRecognizedText(text);
       setExecutionMessage("已停止连续语音输入。");
-      setParsedCommand({
+      setParsedCommands([{
         action: "clarify",
         message: "已停止连续语音输入。"
-      });
+      }]);
       return;
     }
 
-    const result = parseCommand(text);
-    setParsedCommand(result);
+    const results = parseCommandSequence(text);
+    setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(onCommand?.(result) ?? "");
-  }, [onCommand]);
+    setExecutionMessage(executeParsedCommands(results));
+  }, [executeParsedCommands]);
   const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
-    if (!parsedCommand) {
+    if (parsedCommands.length === 0) {
       return "输入文本指令后点击执行，可以查看本地规则解析结果。";
     }
 
-    return (
-      executionMessage ||
-      (parsedCommand.action === "clarify" ? parsedCommand.message : commandSummary(parsedCommand))
-    );
-  }, [executionMessage, parsedCommand]);
+    if (executionMessage) {
+      return executionMessage;
+    }
+
+    if (parsedCommands.length === 1) {
+      const [command] = parsedCommands;
+      return command.action === "clarify" ? command.message : commandSummary(command);
+    }
+
+    return `已拆解为 ${parsedCommands.length} 条指令。`;
+  }, [executionMessage, parsedCommands]);
 
   function executeTextCommand(text: string) {
     if (isStopSpeechCommand(text)) {
@@ -105,17 +129,17 @@ export function CommandPanel({
       setInput(text);
       setRecognizedText(text);
       setExecutionMessage("已停止连续语音输入。");
-      setParsedCommand({
+      setParsedCommands([{
         action: "clarify",
         message: "已停止连续语音输入。"
-      });
+      }]);
       return;
     }
 
-    const result = parseCommand(text);
-    setParsedCommand(result);
+    const results = parseCommandSequence(text);
+    setParsedCommands(results);
     setRecognizedText(text.trim() || "未输入文本。");
-    setExecutionMessage(onCommand?.(result) ?? "");
+    setExecutionMessage(executeParsedCommands(results));
   }
 
   function executeCommand() {
@@ -203,9 +227,9 @@ export function CommandPanel({
       <div className="mt-3 rounded-md border border-canvas-line bg-white p-3">
         <p className="text-xs font-semibold text-canvas-muted">系统反馈</p>
         <p className="mt-2 text-sm">{feedback}</p>
-        {parsedCommand ? (
+        {parsedCommands.length > 0 ? (
           <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-canvas-wash p-3 text-xs leading-5 text-canvas-ink">
-            {JSON.stringify(parsedCommand, null, 2)}
+            {JSON.stringify(parsedCommands.length === 1 ? parsedCommands[0] : parsedCommands, null, 2)}
           </pre>
         ) : null}
       </div>
