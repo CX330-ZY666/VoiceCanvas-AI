@@ -53,30 +53,43 @@ function commandSummary(command: DrawCommand) {
   return summaries[command.action];
 }
 
-export function CommandPanel() {
+export function CommandPanel({
+  onCommand
+}: Readonly<{
+  onCommand?: (command: DrawCommand) => string;
+}>) {
   const [input, setInput] = useState("画一个红色圆形");
   const [recognizedText, setRecognizedText] = useState("等待语音输入。");
   const [parsedCommand, setParsedCommand] = useState<DrawCommand | null>(null);
+  const [executionMessage, setExecutionMessage] = useState("");
 
   const feedback = useMemo(() => {
     if (!parsedCommand) {
       return "输入文本指令后点击执行，可以查看本地规则解析结果。";
     }
 
-    return parsedCommand.action === "clarify" ? parsedCommand.message : commandSummary(parsedCommand);
-  }, [parsedCommand]);
+    return (
+      executionMessage ||
+      (parsedCommand.action === "clarify" ? parsedCommand.message : commandSummary(parsedCommand))
+    );
+  }, [executionMessage, parsedCommand]);
+
+  function executeTextCommand(text: string) {
+    const result = parseCommand(text);
+    setParsedCommand(result);
+    setRecognizedText(text.trim() || "未输入文本。");
+    setExecutionMessage(onCommand?.(result) ?? "");
+  }
 
   function executeCommand() {
-    const result = parseCommand(input);
-    setParsedCommand(result);
-    setRecognizedText(input.trim() || "未输入文本。");
+    executeTextCommand(input);
   }
 
   return (
     <aside className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
-        <span className="text-xs font-medium text-canvas-muted">PR 3 解析器</span>
+        <span className="text-xs font-medium text-canvas-muted">PR 5 执行器</span>
       </div>
       <div className="mt-4 grid gap-3">
         <ToolbarButton
@@ -95,8 +108,7 @@ export function CommandPanel() {
           label="清空画布"
           onClick={() => {
             setInput("清空画布");
-            setParsedCommand(parseCommand("清空画布"));
-            setRecognizedText("清空画布");
+            executeTextCommand("清空画布");
           }}
         >
           <Broom size={18} weight="bold" />
@@ -105,8 +117,7 @@ export function CommandPanel() {
           label="撤销"
           onClick={() => {
             setInput("撤销");
-            setParsedCommand(parseCommand("撤销"));
-            setRecognizedText("撤销");
+            executeTextCommand("撤销");
           }}
         >
           <ArrowCounterClockwise size={18} weight="bold" />

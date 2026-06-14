@@ -1,0 +1,200 @@
+import {
+  type CanvasElement,
+  createCanvasElement,
+  getElementLabel,
+  getNextElementId
+} from "./canvas-data";
+import type { DrawCommand } from "./command-parser";
+
+const MOVE_DISTANCE = 40;
+const SCALE_RATIO = 1.2;
+
+type ExecuteResult = {
+  elements: CanvasElement[];
+  message: string;
+};
+
+function findElement(elements: CanvasElement[], id?: string) {
+  if (!id) {
+    return undefined;
+  }
+
+  return elements.find((element) => element.id.toUpperCase() === id.toUpperCase());
+}
+
+function getDefaultPosition(elements: CanvasElement[]) {
+  const shapeCount = elements.filter((element) => element.type !== "arrow").length;
+
+  return {
+    x: 260 + (shapeCount % 4) * 120,
+    y: 180 + Math.floor(shapeCount / 4) * 95
+  };
+}
+
+function getRelativePosition(target: CanvasElement, relation?: string) {
+  const offset = 170;
+
+  if (relation === "leftOf") {
+    return { x: target.x - offset, y: target.y };
+  }
+
+  if (relation === "rightOf") {
+    return { x: target.x + offset, y: target.y };
+  }
+
+  if (relation === "above") {
+    return { x: target.x, y: target.y - 120 };
+  }
+
+  if (relation === "below") {
+    return { x: target.x, y: target.y + 120 };
+  }
+
+  return { x: target.x + offset, y: target.y };
+}
+
+function scaleElement(element: CanvasElement, direction: "up" | "down") {
+  const ratio = direction === "up" ? SCALE_RATIO : 1 / SCALE_RATIO;
+
+  return {
+    ...element,
+    radius: element.radius ? Math.round(element.radius * ratio) : element.radius,
+    width: element.width ? Math.round(element.width * ratio) : element.width,
+    height: element.height ? Math.round(element.height * ratio) : element.height
+  };
+}
+
+function moveElement(element: CanvasElement, direction: "left" | "right" | "up" | "down") {
+  const delta = {
+    left: { x: -MOVE_DISTANCE, y: 0 },
+    right: { x: MOVE_DISTANCE, y: 0 },
+    up: { x: 0, y: -MOVE_DISTANCE },
+    down: { x: 0, y: MOVE_DISTANCE }
+  }[direction];
+
+  return {
+    ...element,
+    x: element.x + delta.x,
+    y: element.y + delta.y
+  };
+}
+
+function removeElementAndRelatedArrows(elements: CanvasElement[], targetId: string) {
+  return elements.filter((element) => {
+    if (element.id.toUpperCase() === targetId.toUpperCase()) {
+      return false;
+    }
+
+    if (element.type === "arrow") {
+      return element.fromId !== targetId && element.toId !== targetId;
+    }
+
+    return true;
+  });
+}
+
+export function executeCommand(elements: CanvasElement[], command: DrawCommand): ExecuteResult {
+  if (command.action === "clarify") {
+    return { elements, message: command.message };
+  }
+
+  if (command.action === "clear") {
+    return { elements: [], message: "已清空画布。" };
+  }
+
+  if (command.action === "create") {
+    const nextId = getNextElementId(elements);
+    const target = findElement(elements, command.position?.targetId);
+    const position = target
+      ? getRelativePosition(target, command.position?.relation)
+      : getDefaultPosition(elements);
+
+    return {
+      elements: [
+        ...elements,
+        createCanvasElement(
+          nextId,
+          command.shapeType,
+          position.x,
+          position.y,
+          command.color,
+          command.text
+        )
+      ],
+      message: `已创建${nextId}号对象。`
+    };
+  }
+
+  if (command.action === "update") {
+    const target = findElement(elements, command.targetId);
+
+    if (!target) {
+      return {
+        elements,
+        message: "没有找到要修改的对象，请使用对象编号，例如“把矩形 B 改成绿色”。"
+      };
+    }
+
+    const updatedElements = elements.map((element) => {
+      if (element.id !== target.id) {
+        return element;
+      }
+
+      let nextElement = { ...element };
+
+      if (command.properties.color) {
+        nextElement = { ...nextElement, color: command.properties.color };
+      }
+
+      if (command.properties.move) {
+        nextElement = moveElement(nextElement, command.properties.move);
+      }
+
+      if (command.properties.scale) {
+        nextElement = scaleElement(nextElement, command.properties.scale);
+      }
+
+      return nextElement;
+    });
+
+    return {
+      elements: updatedElements,
+      message: `已更新${getElementLabel(target)} ${target.id}。`
+    };
+  }
+
+  if (command.action === "delete") {
+    const target = findElement(elements, command.targetId);
+
+    if (!target) {
+      return {
+        elements,
+        message: "没有找到要删除的对象，请使用对象编号，例如“删除圆形 A”。"
+      };
+    }
+
+    return {
+      elements: removeElementAndRelatedArrows(elements, target.id),
+      message: `已删除${getElementLabel(target)} ${target.id}，相关箭头也会一并移除。`
+    };
+  }
+
+  if (command.action === "connect") {
+    return {
+      elements,
+      message: "箭头连接会在 PR 6 接入。当前请先验证解析结果。"
+    };
+  }
+
+  if (command.action === "undo") {
+    return {
+      elements,
+      message: "撤销功能会在 PR 7 接入。"
+    };
+  }
+
+  return {
+    elements,
+    message: "登录流程图模板会在 PR 9 接入。"
+  };
+}

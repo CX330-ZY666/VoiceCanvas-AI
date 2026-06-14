@@ -9,6 +9,8 @@ import {
   getNextElementId
 } from "./canvas-data";
 import { CommandPanel } from "./command-panel";
+import { executeCommand } from "./command-executor";
+import type { DrawCommand } from "./command-parser";
 import { ObjectList } from "./object-list";
 import { SvgCanvas } from "./svg-canvas";
 
@@ -24,9 +26,16 @@ export function VoiceCanvasWorkbench() {
     });
   }
 
+  function handleCommand(command: DrawCommand) {
+    const result = executeCommand(elements, command);
+    setElements(result.elements);
+
+    return result.message;
+  }
+
   return (
     <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
-      <CommandPanel />
+      <CommandPanel onCommand={handleCommand} />
 
       <section className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
         <div className="flex flex-col gap-3 border-b border-canvas-line pb-3 sm:flex-row sm:items-center sm:justify-between">
