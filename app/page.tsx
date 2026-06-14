@@ -1,11 +1,5 @@
-import {
-  ArrowCounterClockwise,
-  Broom,
-  Microphone,
-  PaperPlaneTilt,
-  StopCircle
-} from "@phosphor-icons/react/dist/ssr";
 import { demoCanvasElements, getElementLabel } from "./canvas-data";
+import { CommandPanel } from "./command-panel";
 import { SvgCanvas } from "./svg-canvas";
 
 const exampleCommands = [
@@ -28,31 +22,6 @@ const visibleObjects = demoCanvasElements.map((item) => ({
       ? `箭头：${item.fromId} 指向 ${item.toId}`
       : `${getElementLabel(item)}：${item.color ?? "黑色"}`
 }));
-
-function ToolbarButton({
-  label,
-  children,
-  variant = "secondary"
-}: Readonly<{
-  label: string;
-  children: React.ReactNode;
-  variant?: "primary" | "secondary";
-}>) {
-  const variantClass =
-    variant === "primary"
-      ? "border-canvas-accent bg-canvas-accent text-white hover:bg-[#18765f]"
-      : "border-canvas-line bg-white text-canvas-ink hover:bg-[#f0f3f5]";
-
-  return (
-    <button
-      className={`flex min-h-11 items-center justify-center gap-2 rounded-md border px-4 text-sm font-semibold transition duration-200 active:translate-y-px ${variantClass}`}
-      type="button"
-    >
-      {children}
-      <span>{label}</span>
-    </button>
-  );
-}
 
 export default function Home() {
   return (
@@ -80,49 +49,7 @@ export default function Home() {
         </header>
 
         <section className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
-          <aside className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
-            <div className="flex items-center justify-between border-b border-canvas-line pb-3">
-              <h2 className="text-base font-bold">控制区</h2>
-              <span className="text-xs font-medium text-canvas-muted">PR 2 占位</span>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <ToolbarButton label="开始语音输入">
-                <Microphone size={18} weight="bold" />
-              </ToolbarButton>
-              <ToolbarButton label="停止语音输入">
-                <StopCircle size={18} weight="bold" />
-              </ToolbarButton>
-              <ToolbarButton label="清空画布">
-                <Broom size={18} weight="bold" />
-              </ToolbarButton>
-              <ToolbarButton label="撤销">
-                <ArrowCounterClockwise size={18} weight="bold" />
-              </ToolbarButton>
-            </div>
-
-            <label className="mt-5 block text-sm font-semibold" htmlFor="command">
-              文本指令
-            </label>
-            <textarea
-              className="mt-2 min-h-28 w-full resize-none rounded-md border border-canvas-line bg-canvas-wash px-3 py-3 text-sm outline-none transition focus:border-canvas-accent focus:bg-white"
-              id="command"
-              placeholder="例如：画一个红色圆形"
-            />
-            <div className="mt-3">
-              <ToolbarButton label="执行指令" variant="primary">
-                <PaperPlaneTilt size={18} weight="bold" />
-              </ToolbarButton>
-            </div>
-
-            <div className="mt-5 rounded-md border border-canvas-line bg-canvas-wash p-3">
-              <p className="text-xs font-semibold text-canvas-muted">当前识别文本</p>
-              <p className="mt-2 text-sm">等待语音输入。</p>
-            </div>
-            <div className="mt-3 rounded-md border border-canvas-line bg-white p-3">
-              <p className="text-xs font-semibold text-canvas-muted">系统反馈</p>
-              <p className="mt-2 text-sm">SVG 画布已接入，当前展示基础图形示例。</p>
-            </div>
-          </aside>
+          <CommandPanel />
 
           <section className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
             <div className="flex items-center justify-between border-b border-canvas-line pb-3">
