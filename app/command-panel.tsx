@@ -62,6 +62,38 @@ function isStopSpeechCommand(text: string) {
   return /(停止|结束|关闭).*(语音|监听|输入)?/.test(text);
 }
 
+type AppControlCommand = {
+  kind: "enable_feedback" | "disable_feedback" | "stop_feedback";
+  message: string;
+};
+
+function parseAppControlCommand(text: string): AppControlCommand | null {
+  const normalizedText = text.replace(/\s+/g, "");
+
+  if (/(开启|打开|启动).*(语音反馈|语音播报|播报|朗读)/.test(normalizedText)) {
+    return {
+      kind: "enable_feedback",
+      message: "语音反馈已开启。"
+    };
+  }
+
+  if (/(关闭|关掉|取消).*(语音反馈|语音播报|播报|朗读)/.test(normalizedText)) {
+    return {
+      kind: "disable_feedback",
+      message: "语音反馈已关闭。"
+    };
+  }
+
+  if (/(停止|结束).*(播报|朗读|语音反馈)/.test(normalizedText)) {
+    return {
+      kind: "stop_feedback",
+      message: "已停止语音反馈播报。"
+    };
+  }
+
+  return null;
+}
+
 export function CommandPanel({
   onCommand
 }: Readonly<{
@@ -100,8 +132,40 @@ export function CommandPanel({
       speakSpeechFeedback(message);
     }
   }, [isSpeechFeedbackEnabled, speakSpeechFeedback]);
+  const applyAppControlCommand = useCallback((text: string) => {
+    const controlCommand = parseAppControlCommand(text);
+
+    if (!controlCommand) {
+      return false;
+    }
+
+    setRecognizedText(text.trim() || "未输入文本。");
+    setExecutionMessage(controlCommand.message);
+    setParsedCommands([{
+      action: "clarify",
+      message: controlCommand.message
+    }]);
+
+    if (controlCommand.kind === "enable_feedback") {
+      setIsSpeechFeedbackEnabled(true);
+      speakSpeechFeedback(controlCommand.message);
+      return true;
+    }
+
+    stopSpeechFeedback();
+
+    if (controlCommand.kind === "disable_feedback") {
+      setIsSpeechFeedbackEnabled(false);
+    }
+
+    return true;
+  }, [speakSpeechFeedback, stopSpeechFeedback]);
   const handleSpeechText = useCallback((text: string) => {
     setInput(text);
+
+    if (applyAppControlCommand(text)) {
+      return;
+    }
 
     if (isStopSpeechCommand(text)) {
       const stopMessage = "已停止连续语音输入。";
@@ -121,7 +185,7 @@ export function CommandPanel({
     setRecognizedText(text.trim() || "未输入文本。");
     setExecutionMessage(message);
     speakFeedback(message);
-  }, [executeParsedCommands, speakFeedback]);
+  }, [applyAppControlCommand, executeParsedCommands, speakFeedback]);
   const speech = useSpeechRecognition(handleSpeechText);
 
   const feedback = useMemo(() => {
@@ -142,6 +206,11 @@ export function CommandPanel({
   }, [executionMessage, parsedCommands]);
 
   function executeTextCommand(text: string) {
+    if (applyAppControlCommand(text)) {
+      setInput(text);
+      return;
+    }
+
     if (isStopSpeechCommand(text)) {
       const stopMessage = "已停止连续语音输入。";
       speech.stopListening();
@@ -173,7 +242,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 14 语音反馈"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 15 语音控制"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
