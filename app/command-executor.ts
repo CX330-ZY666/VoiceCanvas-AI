@@ -13,6 +13,7 @@ const SCALE_RATIO = 1.2;
 type ExecuteResult = {
   elements: CanvasElement[];
   message: string;
+  didChange?: boolean;
 };
 
 function findElement(elements: CanvasElement[], id?: string) {
@@ -96,11 +97,11 @@ function removeElementAndRelatedArrows(elements: CanvasElement[], targetId: stri
 
 export function executeCommand(elements: CanvasElement[], command: DrawCommand): ExecuteResult {
   if (command.action === "clarify") {
-    return { elements, message: command.message };
+    return { elements, message: command.message, didChange: false };
   }
 
   if (command.action === "clear") {
-    return { elements: [], message: "已清空画布。" };
+    return { elements: [], message: "已清空画布。", didChange: elements.length > 0 };
   }
 
   if (command.action === "create") {
@@ -122,7 +123,8 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
           command.text
         )
       ],
-      message: `已创建${nextId}号对象。`
+      message: `已创建${nextId}号对象。`,
+      didChange: true
     };
   }
 
@@ -132,7 +134,8 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
     if (!target) {
       return {
         elements,
-        message: "没有找到要修改的对象，请使用对象编号，例如“把矩形 B 改成绿色”。"
+        message: "没有找到要修改的对象，请使用对象编号，例如“把矩形 B 改成绿色”。",
+        didChange: false
       };
     }
 
@@ -160,7 +163,8 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
 
     return {
       elements: updatedElements,
-      message: `已更新${getElementLabel(target)} ${target.id}。`
+      message: `已更新${getElementLabel(target)} ${target.id}。`,
+      didChange: true
     };
   }
 
@@ -170,13 +174,15 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
     if (!target) {
       return {
         elements,
-        message: "没有找到要删除的对象，请使用对象编号，例如“删除圆形 A”。"
+        message: "没有找到要删除的对象，请使用对象编号，例如“删除圆形 A”。",
+        didChange: false
       };
     }
 
     return {
       elements: removeElementAndRelatedArrows(elements, target.id),
-      message: `已删除${getElementLabel(target)} ${target.id}，相关箭头也会一并移除。`
+      message: `已删除${getElementLabel(target)} ${target.id}，相关箭头也会一并移除。`,
+      didChange: true
     };
   }
 
@@ -187,14 +193,16 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
     if (!from || !to) {
       return {
         elements,
-        message: "没有找到要连接的对象，请确认两个对象编号都存在。"
+        message: "没有找到要连接的对象，请确认两个对象编号都存在。",
+        didChange: false
       };
     }
 
     if (from.type === "arrow" || to.type === "arrow") {
       return {
         elements,
-        message: "箭头连接目前只支持连接基础图形和文本对象。"
+        message: "箭头连接目前只支持连接基础图形和文本对象。",
+        didChange: false
       };
     }
 
@@ -202,19 +210,22 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
 
     return {
       elements: [...elements, createArrowElement(nextId, from.id, to.id)],
-      message: `已创建箭头 ${nextId}，连接 ${from.id} 到 ${to.id}。`
+      message: `已创建箭头 ${nextId}，连接 ${from.id} 到 ${to.id}。`,
+      didChange: true
     };
   }
 
   if (command.action === "undo") {
     return {
       elements,
-      message: "撤销功能会在 PR 7 接入。"
+      message: "撤销功能由工作台历史记录处理。",
+      didChange: false
     };
   }
 
   return {
     elements,
-    message: "登录流程图模板会在 PR 9 接入。"
+    message: "登录流程图模板会在 PR 9 接入。",
+    didChange: false
   };
 }

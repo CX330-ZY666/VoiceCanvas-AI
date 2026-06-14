@@ -112,6 +112,18 @@ function findTargetId(input: string) {
   return input.match(/[A-Z]/i)?.[0]?.toUpperCase();
 }
 
+function hasAmbiguousReference(input: string) {
+  return ["这个", "那个", "这条", "那条", "它", "图形", "线"].some((label) => input.includes(label));
+}
+
+function clarifyTargetMessage(action: "delete" | "update") {
+  if (action === "delete") {
+    return "我没有找到明确的删除对象。你可以说“删除箭头 C”或“删除圆形 A”。";
+  }
+
+  return "我没有找到明确的修改对象。你可以说“把圆形 A 改成红色”或“把矩形 B 往下移动一点”。";
+}
+
 function parsePosition(input: string): DrawCommand & { action: "create" } {
   const positionMatch = input.match(/在.*?([A-Z])\s*(左边|左侧|右边|右侧|上方|上面|下方|下面)/i);
   const position = positionMatch
@@ -186,13 +198,20 @@ export function parseCommand(input: string): DrawCommand {
 
     return {
       action: "clarify",
-      message: "我没有找到明确的删除对象。你可以说“删除箭头 C”或“删除圆形 A”。"
+      message: clarifyTargetMessage("delete")
     };
   }
 
   if (command.includes("改成") || command.includes("变成")) {
     const targetId = findTargetId(command);
     const color = findColor(command);
+
+    if (!targetId && (color || hasAmbiguousReference(command))) {
+      return {
+        action: "clarify",
+        message: clarifyTargetMessage("update")
+      };
+    }
 
     if (targetId && color) {
       return {
@@ -213,6 +232,13 @@ export function parseCommand(input: string): DrawCommand {
   }
 
   const targetId = findTargetId(command);
+  if (!targetId && hasAmbiguousReference(command) && (command.includes("移动") || command.includes("放大") || command.includes("缩小"))) {
+    return {
+      action: "clarify",
+      message: clarifyTargetMessage("update")
+    };
+  }
+
   if (targetId && (command.includes("放大") || command.includes("缩小"))) {
     return {
       action: "update",

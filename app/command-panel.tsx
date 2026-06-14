@@ -89,7 +89,7 @@ export function CommandPanel({
     <aside className="rounded-lg border border-canvas-line bg-white p-4 shadow-panel">
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
-        <span className="text-xs font-medium text-canvas-muted">PR 5 执行器</span>
+        <span className="text-xs font-medium text-canvas-muted">PR 7 撤销</span>
       </div>
       <div className="mt-4 grid gap-3">
         <ToolbarButton
