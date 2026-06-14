@@ -23,8 +23,7 @@ export default function Home() {
                 VoiceCanvas AI
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-canvas-muted">
-                用语音创建流程图、结构图和简单示意图。当前 PR 接入 SVG
-                画布示例渲染，后续再逐步实现指令解析与交互执行。
+                用语音创建流程图、结构图和简单示意图。当前版本支持文本指令创建、修改、移动和删除画布对象。
               </p>
             </div>
             <div className="flex w-fit items-center gap-2 rounded-md border border-canvas-line bg-canvas-wash px-3 py-2 text-sm text-canvas-muted">

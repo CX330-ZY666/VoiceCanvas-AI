@@ -89,6 +89,47 @@ export function createDemoElement(id: string, index: number): CanvasElement {
   };
 }
 
+export function createCanvasElement(
+  id: string,
+  type: ShapeType,
+  x: number,
+  y: number,
+  color?: string,
+  text?: string
+): CanvasElement {
+  if (type === "circle") {
+    return {
+      id,
+      type,
+      x,
+      y,
+      radius: 45,
+      color: color ?? "#9ca3af"
+    };
+  }
+
+  if (type === "text") {
+    return {
+      id,
+      type,
+      x,
+      y,
+      text: text ?? "文本",
+      color: color ?? "#20242a"
+    };
+  }
+
+  return {
+    id,
+    type,
+    x,
+    y,
+    width: type === "diamond" ? 120 : 120,
+    height: type === "diamond" ? 90 : 70,
+    color: color ?? "#9ca3af"
+  };
+}
+
 export function getElementLabel(element: CanvasElement) {
   const labels: Record<ElementType, string> = {
     circle: "圆形",
