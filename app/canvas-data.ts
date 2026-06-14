@@ -130,6 +130,18 @@ export function createCanvasElement(
   };
 }
 
+export function createArrowElement(id: string, fromId: string, toId: string): CanvasElement {
+  return {
+    id,
+    type: "arrow",
+    x: 0,
+    y: 0,
+    color: "#20242a",
+    fromId,
+    toId
+  };
+}
+
 export function getElementLabel(element: CanvasElement) {
   const labels: Record<ElementType, string> = {
     circle: "圆形",
