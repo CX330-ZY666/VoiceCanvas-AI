@@ -26,6 +26,7 @@ function getLabelY(element: CanvasElement) {
 function renderShape(element: CanvasElement) {
   const label = `${getElementLabel(element)} ${element.id}`;
   const fill = element.color ?? "#9ca3af";
+  const innerText = element.text;
 
   if (element.type === "circle") {
     return (
@@ -41,6 +42,11 @@ function renderShape(element: CanvasElement) {
         <text className="fill-canvas-ink text-[18px] font-bold" textAnchor="middle" x={element.x} y={getLabelY(element)}>
           {label}
         </text>
+        {innerText ? (
+          <text className="fill-white text-[17px] font-bold" textAnchor="middle" x={element.x} y={element.y + 6}>
+            {innerText}
+          </text>
+        ) : null}
       </g>
     );
   }
@@ -64,6 +70,11 @@ function renderShape(element: CanvasElement) {
         <text className="fill-canvas-ink text-[18px] font-bold" textAnchor="middle" x={element.x} y={getLabelY(element)}>
           {label}
         </text>
+        {innerText ? (
+          <text className="fill-canvas-ink text-[17px] font-bold" textAnchor="middle" x={element.x} y={element.y + 6}>
+            {innerText}
+          </text>
+        ) : null}
       </g>
     );
   }
@@ -84,6 +95,11 @@ function renderShape(element: CanvasElement) {
         <text className="fill-canvas-ink text-[18px] font-bold" textAnchor="middle" x={element.x} y={getLabelY(element)}>
           {label}
         </text>
+        {innerText ? (
+          <text className="fill-canvas-ink text-[17px] font-bold" textAnchor="middle" x={element.x} y={element.y + 6}>
+            {innerText}
+          </text>
+        ) : null}
       </g>
     );
   }

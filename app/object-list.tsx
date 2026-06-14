@@ -16,7 +16,7 @@ function describeElement(element: CanvasElement) {
     description:
       element.type === "text"
         ? `文本：${element.text ?? ""}`
-        : `${getElementLabel(element)}：${element.color ?? "灰色"}`
+        : `${getElementLabel(element)}：${element.text ?? element.color ?? "灰色"}`
   };
 }
 
