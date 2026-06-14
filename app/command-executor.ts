@@ -11,6 +11,11 @@ import type { SpatialTargetQuery } from "./command-parser";
 
 const MOVE_DISTANCE = 40;
 const SCALE_RATIO = 1.2;
+const LAYOUT_COLUMNS = 3;
+const LAYOUT_START_X = 210;
+const LAYOUT_START_Y = 140;
+const LAYOUT_GAP_X = 240;
+const LAYOUT_GAP_Y = 150;
 
 type ExecuteResult = {
   elements: CanvasElement[];
@@ -138,6 +143,25 @@ function duplicateElement(element: CanvasElement, id: string): CanvasElement {
   };
 }
 
+function autoLayoutElements(elements: CanvasElement[]) {
+  let shapeIndex = 0;
+
+  return elements.map((element) => {
+    if (element.type === "arrow") {
+      return element;
+    }
+
+    const nextElement = {
+      ...element,
+      x: LAYOUT_START_X + (shapeIndex % LAYOUT_COLUMNS) * LAYOUT_GAP_X,
+      y: LAYOUT_START_Y + Math.floor(shapeIndex / LAYOUT_COLUMNS) * LAYOUT_GAP_Y
+    };
+
+    shapeIndex += 1;
+    return nextElement;
+  });
+}
+
 export function executeCommand(elements: CanvasElement[], command: DrawCommand): ExecuteResult {
   if (command.action === "clarify") {
     return { elements, message: command.message, didChange: false };
@@ -145,6 +169,24 @@ export function executeCommand(elements: CanvasElement[], command: DrawCommand):
 
   if (command.action === "clear") {
     return { elements: [], message: "已清空画布。", didChange: elements.length > 0 };
+  }
+
+  if (command.action === "auto_layout") {
+    const shapeCount = elements.filter((element) => element.type !== "arrow").length;
+
+    if (shapeCount === 0) {
+      return {
+        elements,
+        message: "当前画布没有可整理的对象。",
+        didChange: false
+      };
+    }
+
+    return {
+      elements: autoLayoutElements(elements),
+      message: `已整理画布，重新排列 ${shapeCount} 个对象。`,
+      didChange: true
+    };
   }
 
   if (command.action === "create") {

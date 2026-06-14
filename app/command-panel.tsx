@@ -50,6 +50,7 @@ function commandSummary(command: DrawCommand) {
     connect: "已解析为连接对象指令。",
     delete: "已解析为删除对象指令。",
     duplicate: "已解析为复制对象指令。",
+    auto_layout: "已解析为自动整理画布指令。",
     clear: "已解析为清空画布指令。",
     undo: "已解析为撤销指令。",
     generate_template: "已解析为生成模板指令。",
@@ -76,7 +77,7 @@ function isRepeatCommand(text: string) {
 }
 
 function isRepeatableCommand(command: DrawCommand) {
-  return ["create", "update", "connect", "delete", "duplicate", "generate_template"].includes(command.action);
+  return ["create", "update", "connect", "delete", "duplicate", "auto_layout", "generate_template"].includes(command.action);
 }
 
 function findSelectionTargetId(text: string) {
@@ -110,6 +111,7 @@ const voiceHelpExamples = [
   "删除最上面的图形",
   "画布里有什么",
   "生成一个登录流程图",
+  "整理画布",
   "重复上一条",
   "历史记录",
   "确认清空",
@@ -583,7 +585,7 @@ export function CommandPanel({
       <div className="flex items-center justify-between border-b border-canvas-line pb-3">
         <h2 className="text-base font-bold">控制区</h2>
         <span className="text-xs font-medium text-canvas-muted">
-          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 21 上下文选中"}
+          {speech.isContinuous ? "连续语音" : speech.isListening ? "正在听" : "PR 24 自动排版"}
         </span>
       </div>
       <div className="mt-4 grid gap-3">
